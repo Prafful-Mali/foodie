@@ -33,6 +33,16 @@ class CuisineViewSet(viewsets.ViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def create(self, request):
+        name = request.data.get("name")
+
+        old = Cuisine.objects.filter(name=name, deleted_at__isnull=False).first()
+
+        if old:
+            old.deleted_at = None
+            old.save()
+            serializer = CuisineSerializer(old)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
         serializer = CuisineSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
