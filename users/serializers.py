@@ -84,3 +84,29 @@ class LoginSerializer(serializers.Serializer):
 
         refresh = RefreshToken.for_user(user)
         return {"refresh": str(refresh), "access": str(refresh.access_token)}
+
+
+class TokenRefreshSerializer(serializers.Serializer):
+    refresh = serializers.CharField()
+
+    def validate(self, attrs):
+        token_str = attrs["refresh"]
+
+        try:
+            old_refresh = RefreshToken(token_str)
+
+            old_refresh.blacklist()
+
+            user = User.objects.get(id=old_refresh["user_id"])
+
+            new_refresh = RefreshToken.for_user(user)
+
+            return {
+                "refresh": str(new_refresh),
+                "access": str(new_refresh.access_token),
+            }
+
+        except Exception:
+            raise serializers.ValidationError(
+                {"refresh": "Invalid or expired refresh token."}
+            )

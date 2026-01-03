@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-from .serializers import RegisterSerializer, LoginSerializer
+from .serializers import RegisterSerializer, LoginSerializer, TokenRefreshSerializer
 
 
 class RegisterAPIView(APIView):
@@ -61,3 +61,21 @@ class LogoutAPIView(APIView):
                 {"error": "Invalid or expired token"},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
+
+
+class TokenRefreshAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = TokenRefreshSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        tokens = serializer.validated_data
+
+        return Response(
+            {
+                "access": tokens.get("access"),
+                "refresh": tokens.get("refresh"),
+            },
+            status=status.HTTP_200_OK,
+        )
