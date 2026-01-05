@@ -38,18 +38,9 @@ class LoginAPIView(APIView):
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
-
         serializer.is_valid(raise_exception=True)
 
-        tokens = serializer.validated_data
-
-        return Response(
-            {
-                "access": tokens.get("access"),
-                "refresh": tokens.get("refresh"),
-            },
-            status=status.HTTP_200_OK,
-        )
+        return Response(serializer.validated_data, status=status.HTTP_200_OK)
 
 
 class LogoutAPIView(APIView):
