@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Cuisine, Ingredient, Recipe, RecipeIngredient
+from users.enums import UserRole
 
 
 class CuisineSerializer(serializers.ModelSerializer):
@@ -8,12 +9,28 @@ class CuisineSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "created_at", "updated_at"]
         read_only_fields = ["id", "created_at", "updated_at"]
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        request = self.context.get("request")
+        if request:
+            if request.user.role == UserRole.ADMIN:
+                self.fields["deleted_at"] = serializers.DateTimeField(read_only=True)
+
 
 class IngredientSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ingredient
         fields = ["id", "name", "created_at", "updated_at"]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        request = self.context.get("request")
+        if request:
+            if request.user.role == UserRole.ADMIN:
+                self.fields["deleted_at"] = serializers.DateTimeField(read_only=True)
 
 
 class RecipeIngredientSerializer(serializers.ModelSerializer):
@@ -54,6 +71,14 @@ class RecipeSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "user_id", "created_at", "updated_at"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        request = self.context.get("request")
+        if request:
+            if request.user.role == UserRole.ADMIN:
+                self.fields["deleted_at"] = serializers.DateTimeField(read_only=True)
 
     def validate_cuisine_id(self, value):
         if value is None:
@@ -120,7 +145,6 @@ class MiniIngredientSerializer(serializers.ModelSerializer):
 class RecipeListSerializer(serializers.ModelSerializer):
     cuisine = CuisineSerializer(read_only=True)
     user_id = serializers.UUIDField(source="user.id", read_only=True)
-
     ingredients = MiniIngredientSerializer(many=True, read_only=True)
 
     class Meta:
@@ -137,3 +161,11 @@ class RecipeListSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = fields
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        request = self.context.get("request")
+        if request:
+            if request.user.role == UserRole.ADMIN:
+                self.fields["deleted_at"] = serializers.DateTimeField(read_only=True)

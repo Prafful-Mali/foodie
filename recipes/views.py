@@ -13,6 +13,7 @@ from .serializers import (
     RecipeListSerializer,
 )
 from .pagination import DefaultPagination
+from users.enums import UserRole
 
 
 class CuisineViewSet(viewsets.ViewSet):
@@ -24,18 +25,26 @@ class CuisineViewSet(viewsets.ViewSet):
 
         return [permission() for permission in permission_classes]
 
+    def get_queryset(self, request):
+        if request.user.role == UserRole.ADMIN:
+            return Cuisine.objects.all()
+        return Cuisine.objects.filter(deleted_at__isnull=True)
+
     def list(self, request):
-        cuisines = Cuisine.objects.filter(deleted_at__isnull=True)
+        cuisines = self.get_queryset(request)
 
         paginator = DefaultPagination()
         paginated_qs = paginator.paginate_queryset(cuisines, request)
 
-        serializer = CuisineSerializer(paginated_qs, many=True)
+        serializer = CuisineSerializer(
+            paginated_qs, many=True, context={"request": request}
+        )
         return paginator.get_paginated_response(serializer.data)
 
     def retrieve(self, request, pk=None):
-        cuisine = get_object_or_404(Cuisine, pk=pk, deleted_at__isnull=True)
-        serializer = CuisineSerializer(cuisine)
+        cuisines = self.get_queryset(request)
+        cuisine = get_object_or_404(cuisines, pk=pk)
+        serializer = CuisineSerializer(cuisine, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def create(self, request):
@@ -46,26 +55,22 @@ class CuisineViewSet(viewsets.ViewSet):
         if old:
             old.deleted_at = None
             old.save()
-            serializer = CuisineSerializer(old)
+            serializer = CuisineSerializer(old, context={"request": request})
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-        serializer = CuisineSerializer(data=request.data)
+        serializer = CuisineSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
         cuisine = get_object_or_404(Cuisine, pk=pk, deleted_at__isnull=True)
-        serializer = CuisineSerializer(cuisine, data=request.data, partial=True)
+        serializer = CuisineSerializer(
+            cuisine, data=request.data, partial=True, context={"request": request}
+        )
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def destroy(self, request, pk=None):
-        cuisine = get_object_or_404(Cuisine, pk=pk, deleted_at__isnull=True)
-        cuisine.deleted_at = timezone.now()
-        cuisine.save()
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def destroy(self, request, pk=None):
         cuisine = get_object_or_404(Cuisine, pk=pk, deleted_at__isnull=True)
@@ -98,18 +103,26 @@ class IngredientViewSet(viewsets.ViewSet):
 
         return [permission() for permission in permission_classes]
 
+    def get_queryset(self, request):
+        if request.user.role == UserRole.ADMIN:
+            return Ingredient.objects.all()
+        return Ingredient.objects.filter(deleted_at__isnull=True)
+
     def list(self, request):
-        ingredients = Ingredient.objects.filter(deleted_at__isnull=True)
+        ingredients = self.get_queryset(request)
 
         paginator = DefaultPagination()
         paginated_qs = paginator.paginate_queryset(ingredients, request)
 
-        serializer = IngredientSerializer(paginated_qs, many=True)
+        serializer = IngredientSerializer(
+            paginated_qs, many=True, context={"request": request}
+        )
         return paginator.get_paginated_response(serializer.data)
 
     def retrieve(self, request, pk=None):
-        ingredient = get_object_or_404(Ingredient, pk=pk, deleted_at__isnull=True)
-        serializer = IngredientSerializer(ingredient)
+        ingredients = self.get_queryset(request)
+        ingredient = get_object_or_404(ingredients, pk=pk)
+        serializer = IngredientSerializer(ingredient, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def create(self, request):
@@ -120,26 +133,24 @@ class IngredientViewSet(viewsets.ViewSet):
         if old:
             old.deleted_at = None
             old.save()
-            serializer = IngredientSerializer(old)
+            serializer = IngredientSerializer(old, context={"request": request})
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-        serializer = IngredientSerializer(data=request.data)
+        serializer = IngredientSerializer(
+            data=request.data, context={"request": request}
+        )
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
         ingredient = get_object_or_404(Ingredient, pk=pk, deleted_at__isnull=True)
-        serializer = IngredientSerializer(ingredient, data=request.data, partial=True)
+        serializer = IngredientSerializer(
+            ingredient, data=request.data, partial=True, context={"request": request}
+        )
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def destroy(self, request, pk=None):
-        ingredient = get_object_or_404(Ingredient, pk=pk, deleted_at__isnull=True)
-        ingredient.deleted_at = timezone.now()
-        ingredient.save()
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def destroy(self, request, pk=None):
         ingredient = get_object_or_404(Ingredient, pk=pk, deleted_at__isnull=True)
@@ -165,7 +176,6 @@ class IngredientViewSet(viewsets.ViewSet):
 class RecipeViewSet(viewsets.ViewSet):
 
     def get_permissions(self):
-
         if self.action in ["partial_update", "destroy"]:
             permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
         else:
@@ -173,16 +183,22 @@ class RecipeViewSet(viewsets.ViewSet):
 
         return [permission() for permission in permission_classes]
 
-    def list(self, request):
+    def get_queryset(self, request):
         user = request.user
 
-        recipes = (
-            Recipe.objects.filter(
+        if user.role == UserRole.ADMIN:
+            return Recipe.objects.all()
+        else:
+            return Recipe.objects.filter(
                 Q(user=user) | Q(sharing_status="PUBLIC"),
                 deleted_at__isnull=True,
             )
+
+    def list(self, request):
+        recipes = (
+            self.get_queryset(request)
             .select_related("user", "cuisine")
-            .prefetch_related("recipe_ingredients__ingredient")
+            .prefetch_related("ingredients")
         )
 
         cuisine_ids_param = request.query_params.get("cuisine_id")
@@ -214,31 +230,29 @@ class RecipeViewSet(viewsets.ViewSet):
         paginator = DefaultPagination()
         page = paginator.paginate_queryset(recipes, request)
 
-        serializer = RecipeListSerializer(page, many=True)
+        serializer = RecipeListSerializer(page, many=True, context={"request": request})
         return paginator.get_paginated_response(serializer.data)
 
     def retrieve(self, request, pk=None):
-        recipe = get_object_or_404(
-            Recipe.objects.select_related("user", "cuisine").prefetch_related(
-                "recipe_ingredients__ingredient"
-            ),
-            pk=pk,
-            deleted_at__isnull=True,
+        qs = (
+            self.get_queryset(request)
+            .select_related("user", "cuisine")
+            .prefetch_related("recipe_ingredients__ingredient")
         )
 
-        user = request.user
+        recipe = get_object_or_404(qs, pk=pk)
 
-        if recipe.user != user and recipe.sharing_status != "PUBLIC":
+        if recipe.user != request.user and recipe.sharing_status != "PUBLIC":
             return Response(
                 {"message": "You do not have permission to view this recipe."},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        serializer = RecipeSerializer(recipe)
+        serializer = RecipeSerializer(recipe, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def create(self, request):
-        serializer = RecipeSerializer(data=request.data)
+        serializer = RecipeSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         serializer.save(user=request.user)
 
@@ -248,7 +262,9 @@ class RecipeViewSet(viewsets.ViewSet):
         recipe = get_object_or_404(Recipe, pk=pk, deleted_at__isnull=True)
         self.check_object_permissions(request, recipe)
 
-        serializer = RecipeSerializer(recipe, data=request.data, partial=True)
+        serializer = RecipeSerializer(
+            recipe, data=request.data, partial=True, context={"request": request}
+        )
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
