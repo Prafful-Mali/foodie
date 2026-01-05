@@ -13,6 +13,7 @@ from .serializers import (
     RecipeListSerializer,
 )
 from .pagination import DefaultPagination
+from users.enums import UserRole
 
 
 class CuisineViewSet(viewsets.ViewSet):
@@ -24,8 +25,13 @@ class CuisineViewSet(viewsets.ViewSet):
 
         return [permission() for permission in permission_classes]
 
+    def get_queryset(self, request):
+        if request.user.role == UserRole.ADMIN:
+            return Cuisine.objects.all()
+        return Cuisine.objects.filter(deleted_at__isnull=True)
+
     def list(self, request):
-        cuisines = Cuisine.objects.filter(deleted_at__isnull=True)
+        cuisines = self.get_queryset(request)
 
         paginator = DefaultPagination()
         paginated_qs = paginator.paginate_queryset(cuisines, request)
@@ -34,7 +40,8 @@ class CuisineViewSet(viewsets.ViewSet):
         return paginator.get_paginated_response(serializer.data)
 
     def retrieve(self, request, pk=None):
-        cuisine = get_object_or_404(Cuisine, pk=pk, deleted_at__isnull=True)
+        cuisines = self.get_queryset(request)
+        cuisine = get_object_or_404(cuisines, pk=pk)
         serializer = CuisineSerializer(cuisine)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -60,12 +67,6 @@ class CuisineViewSet(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def destroy(self, request, pk=None):
-        cuisine = get_object_or_404(Cuisine, pk=pk, deleted_at__isnull=True)
-        cuisine.deleted_at = timezone.now()
-        cuisine.save()
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def destroy(self, request, pk=None):
         cuisine = get_object_or_404(Cuisine, pk=pk, deleted_at__isnull=True)
@@ -98,8 +99,13 @@ class IngredientViewSet(viewsets.ViewSet):
 
         return [permission() for permission in permission_classes]
 
+    def get_queryset(self, request):
+        if request.user.role == UserRole.ADMIN:
+            return Ingredient.objects.all()
+        return Ingredient.objects.filter(deleted_at__isnull=True)
+
     def list(self, request):
-        ingredients = Ingredient.objects.filter(deleted_at__isnull=True)
+        ingredients = self.get_queryset(request)
 
         paginator = DefaultPagination()
         paginated_qs = paginator.paginate_queryset(ingredients, request)
@@ -108,7 +114,8 @@ class IngredientViewSet(viewsets.ViewSet):
         return paginator.get_paginated_response(serializer.data)
 
     def retrieve(self, request, pk=None):
-        ingredient = get_object_or_404(Ingredient, pk=pk, deleted_at__isnull=True)
+        ingredients = self.get_queryset(request)
+        ingredient = get_object_or_404(ingredients, pk=pk)
         serializer = IngredientSerializer(ingredient)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -137,12 +144,6 @@ class IngredientViewSet(viewsets.ViewSet):
 
     def destroy(self, request, pk=None):
         ingredient = get_object_or_404(Ingredient, pk=pk, deleted_at__isnull=True)
-        ingredient.deleted_at = timezone.now()
-        ingredient.save()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-    def destroy(self, request, pk=None):
-        ingredient = get_object_or_404(Ingredient, pk=pk, deleted_at__isnull=True)
 
         is_used = RecipeIngredient.objects.filter(
             ingredient=ingredient, recipe__deleted_at__isnull=True
@@ -165,7 +166,6 @@ class IngredientViewSet(viewsets.ViewSet):
 class RecipeViewSet(viewsets.ViewSet):
 
     def get_permissions(self):
-
         if self.action in ["partial_update", "destroy"]:
             permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
         else:
@@ -173,16 +173,23 @@ class RecipeViewSet(viewsets.ViewSet):
 
         return [permission() for permission in permission_classes]
 
-    def list(self, request):
+    def get_queryset(self, request):
         user = request.user
 
-        recipes = (
-            Recipe.objects.filter(
+        if user.role == UserRole.ADMIN:
+            return Recipe.objects.all()
+        else:
+            return Recipe.objects.filter(
                 Q(user=user) | Q(sharing_status="PUBLIC"),
                 deleted_at__isnull=True,
             )
+
+    def list(self, request):
+
+        recipes = (
+            self.get_queryset(request)
             .select_related("user", "cuisine")
-            .prefetch_related("recipe_ingredients__ingredient")
+            .prefetch_related("ingredients")
         )
 
         cuisine_ids_param = request.query_params.get("cuisine_id")
@@ -218,15 +225,16 @@ class RecipeViewSet(viewsets.ViewSet):
         return paginator.get_paginated_response(serializer.data)
 
     def retrieve(self, request, pk=None):
-        recipe = get_object_or_404(
-            Recipe.objects.select_related("user", "cuisine").prefetch_related(
-                "recipe_ingredients__ingredient"
-            ),
-            pk=pk,
-            deleted_at__isnull=True,
+        user = request.user
+
+        base_query = Recipe.objects.select_related("user", "cuisine").prefetch_related(
+            "recipe_ingredients__ingredient"
         )
 
-        user = request.user
+        if user.role == UserRole.ADMIN:
+            recipe = get_object_or_404(base_query, pk=pk)
+        else:
+            recipe = get_object_or_404(base_query, pk=pk, deleted_at__isnull=True)
 
         if recipe.user != user and recipe.sharing_status != "PUBLIC":
             return Response(
