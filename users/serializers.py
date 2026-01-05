@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils.crypto import get_random_string
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -110,3 +111,43 @@ class TokenRefreshSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {"refresh": "Invalid or expired refresh token."}
             )
+
+
+class AdminUserListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "email",
+            "role",
+            "is_active",
+            "created_at",
+        ]
+
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "role",
+            "is_active",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+        ]
+
+        read_only_fields = [
+            "id",
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "created_at",
+            "updated_at",
+        ]
