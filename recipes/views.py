@@ -4,7 +4,7 @@ from django.db.models import Q
 from rest_framework.response import Response
 from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
-from .models import Cuisine, Ingredient, Recipe
+from .models import Cuisine, Ingredient, Recipe, RecipeIngredient
 from .permissions import IsAdmin, IsOwnerOrAdmin
 from .serializers import (
     CuisineSerializer,
@@ -67,6 +67,26 @@ class CuisineViewSet(viewsets.ViewSet):
         cuisine.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    def destroy(self, request, pk=None):
+        cuisine = get_object_or_404(Cuisine, pk=pk, deleted_at__isnull=True)
+
+        is_used = Recipe.objects.filter(
+            cuisine=cuisine, deleted_at__isnull=True
+        ).exists()
+
+        if is_used:
+            return Response(
+                {
+                    "error": "Cannot delete cuisine because it is used in one or more recipes."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        cuisine.deleted_at = timezone.now()
+        cuisine.save()
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 class IngredientViewSet(viewsets.ViewSet):
 
@@ -119,6 +139,26 @@ class IngredientViewSet(viewsets.ViewSet):
         ingredient = get_object_or_404(Ingredient, pk=pk, deleted_at__isnull=True)
         ingredient.deleted_at = timezone.now()
         ingredient.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def destroy(self, request, pk=None):
+        ingredient = get_object_or_404(Ingredient, pk=pk, deleted_at__isnull=True)
+
+        is_used = RecipeIngredient.objects.filter(
+            ingredient=ingredient, recipe__deleted_at__isnull=True
+        ).exists()
+
+        if is_used:
+            return Response(
+                {
+                    "error": "Cannot delete ingredient because it is used in one or more recipes."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ingredient.deleted_at = timezone.now()
+        ingredient.save()
+
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
