@@ -47,7 +47,7 @@ class CuisineViewSet(viewsets.ViewSet):
             old.deleted_at = None
             old.save()
             serializer = CuisineSerializer(old)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         serializer = CuisineSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -185,26 +185,31 @@ class RecipeViewSet(viewsets.ViewSet):
             .prefetch_related("recipe_ingredients__ingredient")
         )
 
-        cuisine_name = request.query_params.get("cuisine_name")
-        if cuisine_name:
-            recipes = recipes.filter(cuisine__name__icontains=cuisine_name)
+        cuisine_ids_param = request.query_params.get("cuisine_id")
+        if cuisine_ids_param:
+            cuisine_ids = [
+                cuisine_id.strip()
+                for cuisine_id in cuisine_ids_param.split(",")
+                if cuisine_id.strip()
+            ]
+
+            recipes = recipes.filter(cuisine__id__in=cuisine_ids)
 
         sharing_status = request.query_params.get("sharing_status")
         if sharing_status:
             recipes = recipes.filter(sharing_status=sharing_status)
 
-        ingredient_name_param = request.query_params.get("ingredient_name")
-        if ingredient_name_param:
-            names = [
-                name.strip()
-                for name in ingredient_name_param.split(",")
-                if name.strip()
+        ingredient_ids_param = request.query_params.get("ingredient_id")
+        if ingredient_ids_param:
+            ingredient_ids = [
+                ingredient_id.strip()
+                for ingredient_id in ingredient_ids_param.split(",")
+                if ingredient_id.strip()
             ]
 
-            for name in names:
-                recipes = recipes.filter(
-                    recipe_ingredients__ingredient__name__icontains=name
-                )
+            recipes = recipes.filter(
+                recipe_ingredients__ingredient__id__in=ingredient_ids
+            ).distinct()
 
         paginator = DefaultPagination()
         page = paginator.paginate_queryset(recipes, request)
