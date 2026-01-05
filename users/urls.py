@@ -6,6 +6,8 @@ from .views import (
     LogoutAPIView,
     TokenRefreshAPIView,
     AdminUserViewSet,
+    SendTempPasswordEmailView,
+    ChangePasswordView,
 )
 
 router = DefaultRouter()
@@ -16,5 +18,9 @@ urlpatterns = [
     path("auth/login/", LoginAPIView.as_view(), name="login"),
     path("auth/logout/", LogoutAPIView.as_view(), name="logout"),
     path("auth/token/refresh/", TokenRefreshAPIView.as_view(), name="token_refresh"),
+    path("password-reset/", SendTempPasswordEmailView.as_view(), name="password_reset"),
+    path(
+        "users/password-change/", ChangePasswordView.as_view(), name="password_change"
+    ),
     path("", include(router.urls)),
 ]

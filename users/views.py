@@ -11,10 +11,13 @@ from .serializers import (
     TokenRefreshSerializer,
     AdminUserSerializer,
     AdminUserListSerializer,
+    TempPasswordEmailSerializer,
+    ChangePasswordSerializer,
 )
 from .permissions import IsAdmin
 from .models import User
 from .pagination import DefaultPagination
+from .tasks import send_temp_password_email
 
 
 class RegisterAPIView(APIView):
@@ -144,3 +147,31 @@ class AdminUserViewSet(viewsets.ViewSet):
         user.save()
 
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class SendTempPasswordEmailView(APIView):
+    def post(self, request):
+        serializer = TempPasswordEmailSerializer(data=request.data)
+
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+
+        send_temp_password_email.delay(email)
+
+        return Response(
+            {"message": "Temporary password has been sent to the provided email."},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(instance=request.user, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(
+            {"message": "Password updated successfully."}, status=status.HTTP_200_OK
+        )

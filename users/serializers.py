@@ -151,3 +151,40 @@ class AdminUserSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+
+class TempPasswordEmailSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        value = value.lower()
+
+        if not User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("No account found with this email.")
+
+        return value
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True)
+    new_password_confirm = serializers.CharField(write_only=True)
+
+    def validate_current_password(self, value):
+        user = self.instance 
+        if not user.check_password(value):
+            raise serializers.ValidationError("Current password is incorrect.")
+        return value
+
+    def validate(self, data):
+        if data["new_password"] != data["new_password_confirm"]:
+            raise serializers.ValidationError("New passwords do not match.")
+
+        validate_password(data["new_password"], self.instance)
+
+        return data
+
+    def update(self, instance, validated_data):
+        instance.set_password(validated_data["new_password"])
+        instance.save()
+        return instance
