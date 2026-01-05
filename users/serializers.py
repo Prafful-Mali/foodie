@@ -171,7 +171,7 @@ class ChangePasswordSerializer(serializers.Serializer):
     new_password_confirm = serializers.CharField(write_only=True)
 
     def validate_current_password(self, value):
-        user = self.instance 
+        user = self.instance
         if not user.check_password(value):
             raise serializers.ValidationError("Current password is incorrect.")
         return value

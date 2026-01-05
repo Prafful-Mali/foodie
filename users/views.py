@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework import status, viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
+from recipes.models import Recipe
 from .serializers import (
     RegisterSerializer,
     LoginSerializer,
@@ -142,9 +143,14 @@ class AdminUserViewSet(viewsets.ViewSet):
                 {"error": "User is already deleted."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
         user.is_active = False
         user.deleted_at = timezone.now()
         user.save()
+
+        recipes_qs = Recipe.objects.filter(user=user, deleted_at__isnull=True)
+
+        recipes_qs.update(deleted_at=timezone.now())
 
         return Response(status=status.HTTP_204_NO_CONTENT)
 
