@@ -1,11 +1,17 @@
-from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.shortcuts import get_object_or_404
+from django.db.models import Q
 from rest_framework.response import Response
 from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
-from .models import Cuisine, Ingredient
-from .permissions import IsAdmin
-from .serializers import CuisineSerializer, IngredientSerializer
+from .models import Cuisine, Ingredient, Recipe, RecipeIngredient
+from .permissions import IsAdmin, IsOwnerOrAdmin
+from .serializers import (
+    CuisineSerializer,
+    IngredientSerializer,
+    RecipeSerializer,
+    RecipeListSerializer,
+)
 from .pagination import DefaultPagination
 
 
@@ -41,7 +47,7 @@ class CuisineViewSet(viewsets.ViewSet):
             old.deleted_at = None
             old.save()
             serializer = CuisineSerializer(old)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         serializer = CuisineSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -59,6 +65,26 @@ class CuisineViewSet(viewsets.ViewSet):
         cuisine = get_object_or_404(Cuisine, pk=pk, deleted_at__isnull=True)
         cuisine.deleted_at = timezone.now()
         cuisine.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def destroy(self, request, pk=None):
+        cuisine = get_object_or_404(Cuisine, pk=pk, deleted_at__isnull=True)
+
+        is_used = Recipe.objects.filter(
+            cuisine=cuisine, deleted_at__isnull=True
+        ).exists()
+
+        if is_used:
+            return Response(
+                {
+                    "error": "Cannot delete cuisine because it is used in one or more recipes."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        cuisine.deleted_at = timezone.now()
+        cuisine.save()
+
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -113,4 +139,126 @@ class IngredientViewSet(viewsets.ViewSet):
         ingredient = get_object_or_404(Ingredient, pk=pk, deleted_at__isnull=True)
         ingredient.deleted_at = timezone.now()
         ingredient.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def destroy(self, request, pk=None):
+        ingredient = get_object_or_404(Ingredient, pk=pk, deleted_at__isnull=True)
+
+        is_used = RecipeIngredient.objects.filter(
+            ingredient=ingredient, recipe__deleted_at__isnull=True
+        ).exists()
+
+        if is_used:
+            return Response(
+                {
+                    "error": "Cannot delete ingredient because it is used in one or more recipes."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ingredient.deleted_at = timezone.now()
+        ingredient.save()
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class RecipeViewSet(viewsets.ViewSet):
+
+    def get_permissions(self):
+
+        if self.action in ["partial_update", "destroy"]:
+            permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
+        else:
+            permission_classes = [IsAuthenticated]
+
+        return [permission() for permission in permission_classes]
+
+    def list(self, request):
+        user = request.user
+
+        recipes = (
+            Recipe.objects.filter(
+                Q(user=user) | Q(sharing_status="PUBLIC"),
+                deleted_at__isnull=True,
+            )
+            .select_related("user", "cuisine")
+            .prefetch_related("recipe_ingredients__ingredient")
+        )
+
+        cuisine_ids_param = request.query_params.get("cuisine_id")
+        if cuisine_ids_param:
+            cuisine_ids = [
+                cuisine_id.strip()
+                for cuisine_id in cuisine_ids_param.split(",")
+                if cuisine_id.strip()
+            ]
+
+            recipes = recipes.filter(cuisine__id__in=cuisine_ids)
+
+        sharing_status = request.query_params.get("sharing_status")
+        if sharing_status:
+            recipes = recipes.filter(sharing_status=sharing_status)
+
+        ingredient_ids_param = request.query_params.get("ingredient_id")
+        if ingredient_ids_param:
+            ingredient_ids = [
+                ingredient_id.strip()
+                for ingredient_id in ingredient_ids_param.split(",")
+                if ingredient_id.strip()
+            ]
+
+            recipes = recipes.filter(
+                recipe_ingredients__ingredient__id__in=ingredient_ids
+            ).distinct()
+
+        paginator = DefaultPagination()
+        page = paginator.paginate_queryset(recipes, request)
+
+        serializer = RecipeListSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+    def retrieve(self, request, pk=None):
+        recipe = get_object_or_404(
+            Recipe.objects.select_related("user", "cuisine").prefetch_related(
+                "recipe_ingredients__ingredient"
+            ),
+            pk=pk,
+            deleted_at__isnull=True,
+        )
+
+        user = request.user
+
+        if recipe.user != user and recipe.sharing_status != "PUBLIC":
+            return Response(
+                {"message": "You do not have permission to view this recipe."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = RecipeSerializer(recipe)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def create(self, request):
+        serializer = RecipeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(user=request.user)
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def partial_update(self, request, pk=None):
+        recipe = get_object_or_404(Recipe, pk=pk, deleted_at__isnull=True)
+        self.check_object_permissions(request, recipe)
+
+        serializer = RecipeSerializer(recipe, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def destroy(self, request, pk=None):
+        recipe = get_object_or_404(Recipe, pk=pk, deleted_at__isnull=True)
+        self.check_object_permissions(request, recipe)
+
+        recipe.deleted_at = timezone.now()
+        recipe.save()
+
         return Response(status=status.HTTP_204_NO_CONTENT)
