@@ -139,9 +139,12 @@ class AdminUserViewSet(viewsets.ViewSet):
         user.deleted_at = timezone.now()
         user.save()
 
-        recipes_qs = Recipe.objects.filter(user=user, deleted_at__isnull=True)
+        recipes_qs = Recipe.objects.filter(user=user, is_active=True)
 
-        recipes_qs.update(deleted_at=timezone.now())
+        recipes_qs.update(
+            is_active=False,
+            deleted_at=timezone.now(),
+        )
 
         return Response(status=status.HTTP_204_NO_CONTENT)
 
