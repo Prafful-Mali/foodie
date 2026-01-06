@@ -12,7 +12,7 @@ from .serializers import (
     RecipeSerializer,
     RecipeListSerializer,
 )
-from .pagination import DefaultPagination
+from foodie.pagination import DefaultPagination
 from users.enums import UserRole
 
 

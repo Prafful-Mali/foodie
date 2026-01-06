@@ -15,9 +15,9 @@ from .serializers import (
     TempPasswordEmailSerializer,
     ChangePasswordSerializer,
 )
+from foodie.pagination import DefaultPagination
 from .permissions import IsAdmin
 from .models import User
-from .pagination import DefaultPagination
 from .tasks import send_temp_password_email
 
 
@@ -75,16 +75,7 @@ class TokenRefreshAPIView(APIView):
     def post(self, request):
         serializer = TokenRefreshSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
-        tokens = serializer.validated_data
-
-        return Response(
-            {
-                "access": tokens.get("access"),
-                "refresh": tokens.get("refresh"),
-            },
-            status=status.HTTP_200_OK,
-        )
+        return Response(serializer.validated_data, status=status.HTTP_200_OK)
 
 
 class AdminUserViewSet(viewsets.ViewSet):
