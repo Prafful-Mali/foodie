@@ -5,13 +5,13 @@ from .views import (
     LoginAPIView,
     LogoutAPIView,
     TokenRefreshAPIView,
-    AdminUserViewSet,
     SendTempPasswordEmailView,
     ChangePasswordView,
+    UserViewSet,
 )
 
 router = DefaultRouter()
-router.register("users", AdminUserViewSet, basename="admin_users")
+router.register("users", UserViewSet, basename="user")
 
 urlpatterns = [
     path("auth/register/", RegisterAPIView.as_view(), name="register"),
@@ -20,7 +20,7 @@ urlpatterns = [
     path("auth/token/refresh/", TokenRefreshAPIView.as_view(), name="token_refresh"),
     path("password-reset/", SendTempPasswordEmailView.as_view(), name="password_reset"),
     path(
-        "users/password-change/", ChangePasswordView.as_view(), name="password_change"
+        "users/change-password/", ChangePasswordView.as_view(), name="password_change"
     ),
     path("", include(router.urls)),
 ]

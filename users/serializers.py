@@ -4,6 +4,7 @@ from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User
+from .enums import UserRole
 
 
 class RegisterSerializer(serializers.Serializer):
@@ -33,13 +34,19 @@ class RegisterSerializer(serializers.Serializer):
             raise serializers.ValidationError("Last name must contain only letters.")
         return attr
 
-    def validate_email(self, attr):
-        attr = attr.lower()
+    def validate_email(self, value):
+        value = value.lower()
 
-        if User.objects.filter(email=attr).exists():
+        user = User.objects.filter(email=value).first()
+
+        if user:
+            if not user.is_active:
+                raise serializers.ValidationError(
+                    "This account exists but is deactivated. Please contact the admin."
+                )
             raise serializers.ValidationError("Email already exists.")
 
-        return attr
+        return value
 
     def validate_password(self, attr):
         validate_password(attr)
@@ -63,7 +70,10 @@ class RegisterSerializer(serializers.Serializer):
         user = User(**validated_data)
         user.set_password(password)
         user.save()
-
+        if not user.is_active:
+            raise serializers.ValidationError(
+                {"detail": "Account is disabled. Please contact admin."}
+            )
         return user
 
 
@@ -82,6 +92,11 @@ class LoginSerializer(serializers.Serializer):
 
         if not user.check_password(password):
             raise serializers.ValidationError({"detail": "Invalid credentials"})
+
+        if not user.is_active:
+            raise serializers.ValidationError(
+                {"detail": "Account is disabled. Please contact admin."}
+            )
 
         refresh = RefreshToken.for_user(user)
         return {"refresh": str(refresh), "access": str(refresh.access_token)}
@@ -113,20 +128,7 @@ class TokenRefreshSerializer(serializers.Serializer):
             )
 
 
-class AdminUserListSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = [
-            "id",
-            "username",
-            "email",
-            "role",
-            "is_active",
-            "created_at",
-        ]
-
-
-class AdminUserSerializer(serializers.ModelSerializer):
+class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
@@ -136,23 +138,26 @@ class AdminUserSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "role",
-            "is_active",
             "created_at",
             "updated_at",
-            "deleted_at",
         ]
-
         read_only_fields = [
             "id",
             "username",
             "email",
             "first_name",
             "last_name",
-            "is_active",
+            "role",
             "created_at",
             "updated_at",
-            "deleted_at",
         ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get("request")
+        if request and request.user.role == UserRole.ADMIN:
+            self.fields["is_active"] = serializers.BooleanField()
+            self.fields["deleted_at"] = serializers.DateTimeField(read_only=True)
 
 
 class TempPasswordEmailSerializer(serializers.Serializer):
@@ -161,8 +166,15 @@ class TempPasswordEmailSerializer(serializers.Serializer):
     def validate_email(self, value):
         value = value.lower()
 
-        if not User.objects.filter(email=value).exists():
+        try:
+            user = User.objects.get(email=value)
+        except User.DoesNotExist:
             raise serializers.ValidationError("No account found with this email.")
+
+        if not user.is_active:
+            raise serializers.ValidationError(
+                "Account with this email is disabled. Please contact admin."
+            )
 
         return value
 
