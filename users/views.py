@@ -3,26 +3,26 @@ from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, viewsets
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.exceptions import ValidationError
 from recipes.models import Recipe
 from .serializers import (
     RegisterSerializer,
     LoginSerializer,
     TokenRefreshSerializer,
-    AdminUserSerializer,
-    AdminUserListSerializer,
     TempPasswordEmailSerializer,
     ChangePasswordSerializer,
+    UserSerializer,
 )
-from .permissions import IsAdmin
+from foodie.pagination import DefaultPagination
+from .permissions import IsAdmin, IsOwnerOrAdmin, CanDeleteUser
 from .models import User
-from .pagination import DefaultPagination
 from .tasks import send_temp_password_email
+from .enums import UserRole
 
 
 class RegisterAPIView(APIView):
-    permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
@@ -34,7 +34,6 @@ class RegisterAPIView(APIView):
 
 
 class LoginAPIView(APIView):
-    permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
@@ -70,65 +69,82 @@ class LogoutAPIView(APIView):
 
 
 class TokenRefreshAPIView(APIView):
-    permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = TokenRefreshSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
-        tokens = serializer.validated_data
-
-        return Response(
-            {
-                "access": tokens.get("access"),
-                "refresh": tokens.get("refresh"),
-            },
-            status=status.HTTP_200_OK,
-        )
+        return Response(serializer.validated_data, status=status.HTTP_200_OK)
 
 
-class AdminUserViewSet(viewsets.ViewSet):
-    permission_classes = [IsAdmin]
+class UserViewSet(viewsets.ViewSet):
+    def get_permissions(self):
+        if self.action in ["list", "partial_update"]:
+            permission_classes = [IsAuthenticated, IsAdmin]
+        elif self.action in ["retrieve"]:
+            permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
+        elif self.action in ["destroy"]:
+            permission_classes = [IsAuthenticated, CanDeleteUser]
+        else:
+            permission_classes = [IsAuthenticated]
+        return [permission() for permission in permission_classes]
+
+    def get_queryset(self, request):
+        if request.user.role == UserRole.ADMIN:
+            return User.objects.all()
+        return User.objects.filter(id=request.user.id, is_active=True)
 
     def list(self, request):
+        users = self.get_queryset(request)
+
         status_param = request.query_params.get("status")
-
-        users = User.objects.all()
-
         if status_param == "active":
             users = users.filter(is_active=True)
-
         elif status_param == "deleted":
             users = users.filter(is_active=False)
 
         paginator = DefaultPagination()
         paginated_qs = paginator.paginate_queryset(users, request)
-
-        serializer = AdminUserListSerializer(paginated_qs, many=True)
-
+        serializer = UserSerializer(
+            paginated_qs, many=True, context={"request": request}
+        )
         return paginator.get_paginated_response(serializer.data)
 
     def retrieve(self, request, pk=None):
-        user = get_object_or_404(User, pk=pk)
-        serializer = AdminUserSerializer(user)
+        if request.user.role == UserRole.ADMIN:
+            user = get_object_or_404(User, pk=pk)
+        else:
+            user = get_object_or_404(User, pk=pk, is_active=True)
+
+        self.check_object_permissions(request, user)
+
+        serializer = UserSerializer(user, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def partial_update(self, request, pk=None):
         user = get_object_or_404(User, pk=pk)
 
-        serializer = AdminUserSerializer(user, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+        is_active = request.data.get("is_active", None)
+        if str(is_active).lower() not in ["true"]:
+            raise ValidationError({"detail": "To restore a user, set is_active=true."})
 
+        if user.is_active:
+            return Response(
+                {"detail": "User is already active."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.is_active = True
+        user.deleted_at = None
+        user.save()
+
+        serializer = UserSerializer(user, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def destroy(self, request, pk=None):
         user = get_object_or_404(User, pk=pk)
-        if user == request.user:
-            return Response(
-                {"error": "Admins cannot delete their own account."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+
+        self.check_object_permissions(request, user)
+
         if not user.is_active:
             return Response(
                 {"error": "User is already deleted."},
@@ -139,9 +155,10 @@ class AdminUserViewSet(viewsets.ViewSet):
         user.deleted_at = timezone.now()
         user.save()
 
-        recipes_qs = Recipe.objects.filter(user=user, deleted_at__isnull=True)
-
-        recipes_qs.update(deleted_at=timezone.now())
+        Recipe.objects.filter(user=user, is_active=True).update(
+            is_active=False,
+            deleted_at=timezone.now(),
+        )
 
         return Response(status=status.HTTP_204_NO_CONTENT)
 

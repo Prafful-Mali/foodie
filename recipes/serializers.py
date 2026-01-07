@@ -15,6 +15,7 @@ class CuisineSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request:
             if request.user.role == UserRole.ADMIN:
+                self.fields["is_active"] = serializers.BooleanField(read_only=True)
                 self.fields["deleted_at"] = serializers.DateTimeField(read_only=True)
 
 
@@ -30,6 +31,7 @@ class IngredientSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request:
             if request.user.role == UserRole.ADMIN:
+                self.fields["is_active"] = serializers.BooleanField(read_only=True)
                 self.fields["deleted_at"] = serializers.DateTimeField(read_only=True)
 
 
@@ -43,8 +45,10 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
         read_only_fields = ["id"]
 
     def validate_ingredient_id(self, value):
-        if not Ingredient.objects.filter(id=value, deleted_at__isnull=True).exists():
-            raise serializers.ValidationError("Ingredient does not exist.")
+        if not Ingredient.objects.filter(id=value, is_active=True).exists():
+            raise serializers.ValidationError(
+                "Ingredient does not exist or is inactive."
+            )
         return value
 
 
@@ -78,14 +82,15 @@ class RecipeSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request:
             if request.user.role == UserRole.ADMIN:
+                self.fields["is_active"] = serializers.BooleanField(read_only=True)
                 self.fields["deleted_at"] = serializers.DateTimeField(read_only=True)
 
     def validate_cuisine_id(self, value):
         if value is None:
             return value
 
-        if not Cuisine.objects.filter(id=value, deleted_at__isnull=True).exists():
-            raise serializers.ValidationError("Cuisine does not exist.")
+        if not Cuisine.objects.filter(id=value, is_active=True).exists():
+            raise serializers.ValidationError("Cuisine does not exist or is inactive.")
 
         return value
 
@@ -168,4 +173,5 @@ class RecipeListSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request:
             if request.user.role == UserRole.ADMIN:
+                self.fields["is_active"] = serializers.BooleanField(read_only=True)
                 self.fields["deleted_at"] = serializers.DateTimeField(read_only=True)

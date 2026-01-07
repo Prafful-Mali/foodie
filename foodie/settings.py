@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 from datetime import timedelta
 from dotenv import load_dotenv
+from .constants import ACCESS_TOKEN_LIFETIME, REFRESH_TOKEN_LIFETIME
 
 
 load_dotenv()
@@ -29,7 +30,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DEBUG")
 
 ALLOWED_HOSTS = []
 
@@ -93,7 +94,6 @@ DATABASES = {
     }
 }
 
-
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
 
@@ -139,17 +139,18 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=5),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "ACCESS_TOKEN_LIFETIME": ACCESS_TOKEN_LIFETIME,
+    "REFRESH_TOKEN_LIFETIME": REFRESH_TOKEN_LIFETIME,
 }
 
-CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
-CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/1"
-CELERY_TASK_TIME_LIMIT = 30 * 60
-CELERY_RESULT_EXPIRES = 3600
+
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL")
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND")
+CELERY_TASK_TIME_LIMIT = int(os.getenv("CELERY_TASK_TIME_LIMIT"))
+CELERY_RESULT_EXPIRES = int(os.getenv("CELERY_RESULT_EXPIRES"))
 
 
-EMAIL_BACKEND = os.getenv("EMAIL_BACKEND")
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = os.getenv("EMAIL_HOST")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT"))
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS") == "True"
