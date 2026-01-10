@@ -94,7 +94,8 @@ class CuisineViewSet(viewsets.ViewSet):
 
 
 class IngredientViewSet(viewsets.ViewSet):
-
+    lookup_field = "pk"
+    lookup_value_converter = "uuid"
     def get_permissions(self):
         if self.action in ["create", "partial_update", "destroy"]:
             permission_classes = [IsAuthenticated, IsAdmin]
