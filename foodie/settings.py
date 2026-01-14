@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+from celery.schedules import crontab
 from common.constants import ACCESS_TOKEN_LIFETIME, REFRESH_TOKEN_LIFETIME
 
 
@@ -152,6 +153,16 @@ CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND")
 CELERY_TASK_TIME_LIMIT = int(os.getenv("CELERY_TASK_TIME_LIMIT"))
 CELERY_RESULT_EXPIRES = int(os.getenv("CELERY_RESULT_EXPIRES"))
 
+CELERY_BROKER_URL = "redis://localhost:6379/0"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+
+CELERY_BEAT_SCHEDULE = {
+    "cleanup-soft-deleted-users": {
+        "task": "users.tasks.cleanup_soft_deleted_users",
+        "schedule": crontab(hour=3, minute=0),
+    },
+}
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = os.getenv("EMAIL_HOST")

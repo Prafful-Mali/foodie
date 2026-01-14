@@ -4,6 +4,8 @@ from django.conf import settings
 from django.template.loader import render_to_string
 from celery import shared_task
 from django.core.mail import send_mail
+from django.utils import timezone
+from datetime import timedelta
 from .utils import generate_temp_password
 from .models import User
 
@@ -79,3 +81,9 @@ def hard_delete_user(self, user_id):
         return f"User {user_id} hard deleted"
 
     return f"User {user_id} was restored; skipping hard delete"
+
+
+@shared_task
+def cleanup_soft_deleted_users():
+    threshold = timezone.now() - timedelta(days=90)
+    User.objects.filter(is_active=False, deleted_at__lt=threshold).delete()
