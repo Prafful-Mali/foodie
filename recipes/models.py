@@ -1,16 +1,14 @@
 import uuid
 from django.db import models
 from django.conf import settings
+from common.models import BaseModel
 from .enums import SharingStatus
 
 
-class Cuisine(models.Model):
+class Cuisine(BaseModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100, unique=True)
     is_active = models.BooleanField(default=True, db_default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    deleted_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["name"]
@@ -19,13 +17,10 @@ class Cuisine(models.Model):
         return self.name
 
 
-class Ingredient(models.Model):
+class Ingredient(BaseModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100, unique=True)
     is_active = models.BooleanField(default=True, db_default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    deleted_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["name"]
@@ -34,7 +29,7 @@ class Ingredient(models.Model):
         return self.name
 
 
-class Recipe(models.Model):
+class Recipe(BaseModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="recipes"
@@ -57,9 +52,6 @@ class Recipe(models.Model):
         Ingredient, through="RecipeIngredient", related_name="recipes"
     )
     is_active = models.BooleanField(default=True, db_default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    deleted_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at"]
@@ -68,7 +60,7 @@ class Recipe(models.Model):
         return self.name
 
 
-class RecipeIngredient(models.Model):
+class RecipeIngredient(BaseModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     recipe = models.ForeignKey(
         Recipe, on_delete=models.CASCADE, related_name="recipe_ingredients"
@@ -79,9 +71,6 @@ class RecipeIngredient(models.Model):
     quantity = models.DecimalField(max_digits=10, decimal_places=2)
     unit = models.CharField(max_length=50)
     is_active = models.BooleanField(default=True, db_default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    deleted_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         constraints = [

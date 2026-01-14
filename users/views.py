@@ -1,5 +1,7 @@
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from datetime import timedelta
+from django.core.cache import cache
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, viewsets
@@ -14,23 +16,117 @@ from .serializers import (
     TempPasswordEmailSerializer,
     ChangePasswordSerializer,
     UserSerializer,
+    VerifyOTPSerializer,
+    ResendOTPSerializer,
 )
-from foodie.pagination import DefaultPagination
+from common.pagination import DefaultPagination
 from .permissions import IsAdmin, IsOwnerOrAdmin, CanDeleteUser
 from .models import User
-from .tasks import send_temp_password_email
+from .tasks import send_temp_password_email, send_verification_email, hard_delete_user
 from .enums import UserRole
 
 
 class RegisterAPIView(APIView):
-
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
 
         serializer.is_valid(raise_exception=True)
-        serializer.save()
 
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        user = serializer.save()
+        key = f"email:{user.email}"
+
+        if not cache.add(key, True, timeout=300):
+            return Response(
+                {"error": "Please wait before requesting OTP again"},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        send_verification_email.delay(user.email)
+
+        return Response(
+            {"message": "Registration successful. OTP sent to email."},
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class VerifyOTPAPIView(APIView):
+    def post(self, request):
+        serializer = VerifyOTPSerializer(data=request.data)
+
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+        user_otp = serializer.validated_data["otp"]
+
+        saved_otp = cache.get(f"otp:{email}")
+        if not saved_otp:
+            return Response(
+                {"error": "OTP expired or invalid"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if str(saved_otp) != str(user_otp):
+            return Response(
+                {"error": "Invalid OTP"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            user = User.objects.get(email=email)
+            user.is_email_verified = True
+            user.save(update_fields=["is_email_verified"])
+
+            cache.delete(f"otp:{email}")
+
+            return Response(
+                {
+                    "message": "Email verified successfully",
+                },
+                status=status.HTTP_200_OK,
+            )
+        except User.DoesNotExist:
+            return Response(
+                {"error": "User not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+
+class ResendOTPAPIView(APIView):
+    def post(self, request):
+        serializer = ResendOTPSerializer(data=request.data)
+
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+
+        try:
+            user = User.objects.get(email=email)
+
+            if user.is_email_verified:
+                return Response(
+                    {"error": "Email already verified"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            key = f"email:{user.email}"
+            if not cache.add(key, True, timeout=300):
+                return Response(
+                    {"error": "Please wait 5 minutes before requesting again"},
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                )
+
+            send_verification_email.delay(email)
+
+            return Response(
+                {"message": "OTP resent successfully"},
+                status=status.HTTP_200_OK,
+            )
+
+        except User.DoesNotExist:
+            return Response(
+                {"error": "User not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
 
 class LoginAPIView(APIView):
@@ -142,7 +238,6 @@ class UserViewSet(viewsets.ViewSet):
 
     def destroy(self, request, pk=None):
         user = get_object_or_404(User, pk=pk)
-
         self.check_object_permissions(request, user)
 
         if not user.is_active:
@@ -151,13 +246,28 @@ class UserViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        now = timezone.now()
+
         user.is_active = False
-        user.deleted_at = timezone.now()
+        user.deleted_at = now
+        user.deleted_by = request.user
+
+        if request.user.role == UserRole.ADMIN:
+            eta = now + timedelta(days=90)
+        else:
+            user.is_email_verified = False
+            eta = now + timedelta(days=7)
+
         user.save()
+
+        hard_delete_user.apply_async(
+            args=[str(user.id)],
+            eta=eta,
+        )
 
         Recipe.objects.filter(user=user, is_active=True).update(
             is_active=False,
-            deleted_at=timezone.now(),
+            deleted_at=now,
         )
 
         return Response(status=status.HTTP_204_NO_CONTENT)
