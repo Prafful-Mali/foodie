@@ -12,7 +12,7 @@ from .serializers import (
     RecipeSerializer,
     RecipeListSerializer,
 )
-from foodie.pagination import DefaultPagination
+from common.pagination import DefaultPagination
 from users.enums import UserRole
 
 
@@ -96,6 +96,7 @@ class CuisineViewSet(viewsets.ViewSet):
 class IngredientViewSet(viewsets.ViewSet):
     lookup_field = "pk"
     lookup_value_converter = "uuid"
+
     def get_permissions(self):
         if self.action in ["create", "partial_update", "destroy"]:
             permission_classes = [IsAuthenticated, IsAdmin]

@@ -8,6 +8,8 @@ from .views import (
     SendTempPasswordEmailView,
     ChangePasswordView,
     UserViewSet,
+    VerifyOTPAPIView,
+    ResendOTPAPIView,
 )
 
 router = DefaultRouter()
@@ -22,5 +24,7 @@ urlpatterns = [
     path(
         "users/change-password/", ChangePasswordView.as_view(), name="password_change"
     ),
+    path("auth/verify-otp/", VerifyOTPAPIView.as_view(), name="verify_otp"),
+    path("auth/resend-otp/", ResendOTPAPIView.as_view(), name="resend_otp"),
     path("", include(router.urls)),
 ]

@@ -1,5 +1,3 @@
-from django.db import models
-from django.utils.crypto import get_random_string
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -18,11 +16,16 @@ class RegisterSerializer(serializers.Serializer):
     created_at = serializers.DateTimeField(read_only=True)
 
     def validate_username(self, attr):
-        if User.objects.filter(username=attr).exists():
-            raise serializers.ValidationError("username already exists.")
-        if " " in attr:
-            raise serializers.ValidationError("Username cannot contain spaces.")
-        return attr
+        user = User.objects.filter(username=attr).first()
+
+        if not user:
+            return attr
+
+        # Allow self-deleted user to restore
+        if not user.is_active and user.deleted_by_id == user.id:
+            return attr
+
+        raise serializers.ValidationError("Username already exists.")
 
     def validate_first_name(self, attr):
         if not attr.isalpha():
@@ -36,17 +39,23 @@ class RegisterSerializer(serializers.Serializer):
 
     def validate_email(self, value):
         value = value.lower()
-
         user = User.objects.filter(email=value).first()
 
-        if user:
-            if not user.is_active:
-                raise serializers.ValidationError(
-                    "This account exists but is deactivated. Please contact the admin."
-                )
+        if not user:
+            return value
+
+        if user.is_active:
             raise serializers.ValidationError("Email already exists.")
 
-        return value
+        if user.deleted_by and user.deleted_by_id != user.id:
+            raise serializers.ValidationError(
+                "This account was deactivated by an administrator."
+            )
+
+        if user.deleted_by_id == user.id:
+            return value
+
+        raise serializers.ValidationError("Email already exists.")
 
     def validate_password(self, attr):
         validate_password(attr)
@@ -66,15 +75,76 @@ class RegisterSerializer(serializers.Serializer):
     def create(self, validated_data):
         validated_data.pop("confirm_password")
         password = validated_data.pop("password")
+        email = validated_data.get("email").lower()
+
+        user = User.objects.filter(email=email).first()
+
+        if user and not user.is_active and user.deleted_by_id == user.id:
+            user.username = validated_data["username"]
+            user.first_name = validated_data["first_name"]
+            user.last_name = validated_data["last_name"]
+            user.set_password(password)
+
+            user.is_active = True
+            user.deleted_at = None
+            user.deleted_by = None
+
+            user.save(
+                update_fields=[
+                    "username",
+                    "first_name",
+                    "last_name",
+                    "password",
+                    "is_active",
+                    "deleted_at",
+                    "deleted_by",
+                ]
+            )
+            return user
 
         user = User(**validated_data)
         user.set_password(password)
         user.save()
-        if not user.is_active:
-            raise serializers.ValidationError(
-                {"detail": "Account is disabled. Please contact admin."}
-            )
         return user
+
+
+class VerifyOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField()
+
+    def validate_email(self, attr):
+        attr = attr.lower()
+        try:
+            user = User.objects.get(email=attr)
+        except User.DoesNotExist:
+            raise serializers.ValidationError({"detail": "Invalid credentials"})
+
+        if not user.is_active:
+            raise serializers.ValidationError({"detail": "Account does not exist"})
+
+        if user.is_email_verified:
+            raise serializers.ValidationError({"detail": "Email already verified"})
+
+        return attr
+
+
+class ResendOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, attr):
+        attr.lower()
+        try:
+            user = User.objects.get(email=attr)
+        except User.DoesNotExist:
+            raise serializers.ValidationError({"detail": "Invalid credentials"})
+
+        if not user.is_active:
+            raise serializers.ValidationError({"detail": "Account does not exist"})
+
+        if user.is_email_verified:
+            raise serializers.ValidationError({"detail": "Email already verified"})
+
+        return attr
 
 
 class LoginSerializer(serializers.Serializer):
@@ -97,7 +167,10 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {"detail": "Account is disabled. Please contact admin."}
             )
-
+        if not user.is_email_verified:
+            raise serializers.ValidationError(
+                {"detail": "Please verify your account before login"}
+            )
         refresh = RefreshToken.for_user(user)
         return {"refresh": str(refresh), "access": str(refresh.access_token)}
 
