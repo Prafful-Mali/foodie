@@ -24,5 +24,4 @@ urlpatterns = [
     path("api/v1/", include("recipes.urls")),
 ]
 
-handler404 = "core.exceptions.custom_404_handler"
-
+handler404 = "common.exceptions.custom_404_handler"

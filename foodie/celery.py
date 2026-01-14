@@ -3,7 +3,7 @@ from celery import Celery
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "foodie.settings")
 
-app = Celery("myproject")
+app = Celery("foodie")
 
 app.config_from_object("django.conf:settings", namespace="CELERY")
 
