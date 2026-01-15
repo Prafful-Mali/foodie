@@ -21,7 +21,6 @@ class RegisterSerializer(serializers.Serializer):
         if not user:
             return attr
 
-        # Allow self-deleted user to restore
         if not user.is_active and user.deleted_by_id == user.id:
             return attr
 
@@ -233,25 +232,6 @@ class UserSerializer(serializers.ModelSerializer):
             self.fields["deleted_at"] = serializers.DateTimeField(read_only=True)
 
 
-class TempPasswordEmailSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-
-    def validate_email(self, value):
-        value = value.lower()
-
-        try:
-            user = User.objects.get(email=value)
-        except User.DoesNotExist:
-            raise serializers.ValidationError("No account found with this email.")
-
-        if not user.is_active:
-            raise serializers.ValidationError(
-                "Account with this email is disabled. Please contact admin."
-            )
-
-        return value
-
-
 class ChangePasswordSerializer(serializers.Serializer):
     current_password = serializers.CharField(write_only=True)
     new_password = serializers.CharField(write_only=True)
@@ -275,3 +255,31 @@ class ChangePasswordSerializer(serializers.Serializer):
         instance.set_password(validated_data["new_password"])
         instance.save()
         return instance
+
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        qs = User.objects.filter(email=value, is_active=True)
+
+        if not qs.exists():
+            raise serializers.ValidationError(
+                "No active account exists with this email address."
+            )
+
+        return value
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    new_password = serializers.CharField(min_length=8)
+    confirm_new_password = serializers.CharField(min_length=8)
+
+    def validate_new_password(self, value):
+        validate_password(value)
+        return value
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["confirm_new_password"]:
+            raise serializers.ValidationError("Passwords do not match")
+        return attrs

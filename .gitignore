@@ -16,3 +16,4 @@ db.sqlite3
 dump.rdb
 celerybeat-schedule.db
 *.rdb
+app.log

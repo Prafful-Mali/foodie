@@ -1,17 +1,15 @@
-from django.utils.crypto import get_random_string
-from django.contrib.auth.password_validation import validate_password
-from django.core.exceptions import ValidationError
+from django.core.cache import cache
+
+RESET_TOKEN_TTL = 15 * 60
 
 
-def generate_temp_password(user=None, length=12):
-    allowed_chars = (
-        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+"
-    )
+def set_reset_token(token: str, user_id: str):
+    cache.set(f"pwd-reset:{token}", str(user_id), timeout=RESET_TOKEN_TTL)
 
-    while True:
-        password = get_random_string(length, allowed_chars)
-        try:
-            validate_password(password, user=user)
-            return password
-        except ValidationError:
-            continue
+
+def get_user_id_from_token(token: str):
+    return cache.get(f"pwd-reset:{token}")
+
+
+def delete_reset_token(token: str):
+    cache.delete(f"pwd-reset:{token}")
