@@ -83,3 +83,30 @@ def send_reset_password_email(to_email, base_url):
         html_message=html_content,
         fail_silently=False,
     )
+
+
+@shared_task
+def send_login_otp_email(to_email):
+
+    otp = f"{secrets.randbelow(1000000):06d}"
+
+    cache.set(f"login_otp:{to_email}", otp, timeout=300)
+
+    context = {
+        "otp": otp,
+        "expires_in": 5,
+    }
+
+    html_content = render_to_string("emails/login_otp.html", context)
+    text_content = f"Your login OTP is {otp}. It expires in 5 minutes."
+
+    send_mail(
+        subject="Your Login OTP",
+        message=text_content,
+        from_email=settings.EMAIL_HOST_USER,
+        recipient_list=[to_email],
+        html_message=html_content,
+        fail_silently=False,
+    )
+
+    return "Login OTP sent"

@@ -19,11 +19,18 @@ from .serializers import (
     ResendOTPSerializer,
     ForgotPasswordSerializer,
     ResetPasswordSerializer,
+    LoginVerifyOTPSerializer,
+    LoginResendOTPSerializer,
 )
 from common.pagination import DefaultPagination
 from .permissions import IsAdmin, IsOwnerOrAdmin, CanDeleteUser
 from .models import User
-from .tasks import send_verification_email, hard_delete_user, send_reset_password_email
+from .tasks import (
+    send_verification_email,
+    hard_delete_user,
+    send_reset_password_email,
+    send_login_otp_email,
+)
 from .enums import UserRole
 from .utils import get_user_id_from_token, delete_reset_token
 
@@ -135,9 +142,54 @@ class LoginAPIView(APIView):
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
+
         serializer.is_valid(raise_exception=True)
 
-        return Response(serializer.validated_data, status=status.HTTP_200_OK)
+        email = serializer.validated_data["email"]
+        send_login_otp_email.delay(email)
+
+        return Response(
+            {
+                "message": "OTP sent to your email. Please verify to complete login.",
+                "email": email,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class LoginVerifyOTPAPIView(APIView):
+    def post(self, request):
+        serializer = LoginVerifyOTPSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+        user = serializer.validated_data["user"]
+
+        cache.delete(f"login_otp:{email}")
+
+        refresh = RefreshToken.for_user(user)
+
+        return Response(
+            {
+                "refresh": str(refresh),
+                "access": str(refresh.access_token),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class LoginResendOTPAPIView(APIView):
+    def post(self, request):
+        serializer = LoginResendOTPSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+        send_login_otp_email.delay(email)
+
+        return Response(
+            {"message": "OTP resent successfully"},
+            status=status.HTTP_200_OK,
+        )
 
 
 class LogoutAPIView(APIView):

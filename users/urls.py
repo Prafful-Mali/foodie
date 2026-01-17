@@ -11,6 +11,8 @@ from .views import (
     ResendOTPAPIView,
     ForgotPasswordAPIView,
     ResetPasswordPage,
+    LoginVerifyOTPAPIView,
+    LoginResendOTPAPIView,
 )
 
 router = DefaultRouter()
@@ -19,6 +21,16 @@ router.register("users", UserViewSet, basename="user")
 urlpatterns = [
     path("auth/register/", RegisterAPIView.as_view(), name="register"),
     path("auth/login/", LoginAPIView.as_view(), name="login"),
+    path(
+        "auth/login/verify-otp/",
+        LoginVerifyOTPAPIView.as_view(),
+        name="login_verify_otp",
+    ),
+    path(
+        "auth/login/resend-otp/",
+        LoginResendOTPAPIView.as_view(),
+        name="login_resend_otp",
+    ),
     path("auth/logout/", LogoutAPIView.as_view(), name="logout"),
     path("auth/token/refresh/", TokenRefreshAPIView.as_view(), name="token_refresh"),
     path(
