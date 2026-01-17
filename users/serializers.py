@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
+from django.core.cache import cache
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User
 from .enums import UserRole
@@ -21,7 +22,6 @@ class RegisterSerializer(serializers.Serializer):
         if not user:
             return attr
 
-        # Allow self-deleted user to restore
         if not user.is_active and user.deleted_by_id == user.id:
             return attr
 
@@ -167,12 +167,82 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {"detail": "Account is disabled. Please contact admin."}
             )
+
         if not user.is_email_verified:
             raise serializers.ValidationError(
                 {"detail": "Please verify your account before login"}
             )
-        refresh = RefreshToken.for_user(user)
-        return {"refresh": str(refresh), "access": str(refresh.access_token)}
+
+        attrs["email"] = email
+        return attrs
+
+
+class LoginVerifyOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6, min_length=6)
+
+    def validate(self, attrs):
+        email = attrs["email"].lower()
+        otp = attrs["otp"]
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise serializers.ValidationError({"detail": "Invalid credentials"})
+
+        if not user.is_active:
+            raise serializers.ValidationError({"detail": "Account is disabled"})
+
+        if not user.is_email_verified:
+            raise serializers.ValidationError(
+                {"detail": "Please verify your account before login"}
+            )
+
+        cache_key = f"login_otp:{email}"
+        cached_otp = cache.get(cache_key)
+
+        if not cached_otp:
+            raise serializers.ValidationError(
+                {"detail": "OTP expired. Please request a new one."}
+            )
+
+        if cached_otp != otp:
+            raise serializers.ValidationError({"detail": "Invalid OTP"})
+
+        attrs["email"] = email
+        attrs["user"] = user
+        return attrs
+
+
+class LoginResendOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate(self, attrs):
+        email = attrs["email"].lower()
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise serializers.ValidationError({"detail": "Invalid email"})
+
+        if not user.is_active:
+            raise serializers.ValidationError({"detail": "Account is disabled"})
+
+        if not user.is_email_verified:
+            raise serializers.ValidationError(
+                {"detail": "Please verify your account first"}
+            )
+
+        cache_key = f"login_otp:{email}"
+        if cache.get(cache_key):
+            raise serializers.ValidationError(
+                {
+                    "detail": "An OTP was already sent. Please check your email before requesting again."
+                }
+            )
+
+        attrs["email"] = email
+        return attrs
 
 
 class TokenRefreshSerializer(serializers.Serializer):
@@ -233,25 +303,6 @@ class UserSerializer(serializers.ModelSerializer):
             self.fields["deleted_at"] = serializers.DateTimeField(read_only=True)
 
 
-class TempPasswordEmailSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-
-    def validate_email(self, value):
-        value = value.lower()
-
-        try:
-            user = User.objects.get(email=value)
-        except User.DoesNotExist:
-            raise serializers.ValidationError("No account found with this email.")
-
-        if not user.is_active:
-            raise serializers.ValidationError(
-                "Account with this email is disabled. Please contact admin."
-            )
-
-        return value
-
-
 class ChangePasswordSerializer(serializers.Serializer):
     current_password = serializers.CharField(write_only=True)
     new_password = serializers.CharField(write_only=True)
@@ -275,3 +326,31 @@ class ChangePasswordSerializer(serializers.Serializer):
         instance.set_password(validated_data["new_password"])
         instance.save()
         return instance
+
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        qs = User.objects.filter(email=value, is_active=True)
+
+        if not qs.exists():
+            raise serializers.ValidationError(
+                "No active account exists with this email address."
+            )
+
+        return value
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    new_password = serializers.CharField(min_length=8)
+    confirm_new_password = serializers.CharField(min_length=8)
+
+    def validate_new_password(self, value):
+        validate_password(value)
+        return value
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["confirm_new_password"]:
+            raise serializers.ValidationError("Passwords do not match")
+        return attrs
