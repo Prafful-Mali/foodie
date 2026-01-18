@@ -1,5 +1,6 @@
 from django.core.management.base import BaseCommand
 from users.models import User
+from users.enums import UserRole
 
 
 class Command(BaseCommand):
@@ -9,22 +10,24 @@ class Command(BaseCommand):
         self.stdout.write("Seeding data...")
 
         admin, created = User.objects.get_or_create(
-            email="praffulmali10@gmail.com",
+            email="praffulmali7@gmail.com",
             defaults={
                 "first_name": "Prafful",
                 "last_name": "Mali",
-                "username": "Prafful",
-                "role": "ADMIN",
+                "username": "prafful",
+                "role": UserRole.SUPERADMIN,
+                "is_superadmin": True,
                 "is_active": True,
                 "is_email_verified": True,
+                "tenant": None,
             },
         )
 
         if created:
             admin.set_password("Password123*")
             admin.save()
-            self.stdout.write(self.style.SUCCESS("Admin created"))
+            self.stdout.write(self.style.SUCCESS("Superadmin created"))
         else:
-            self.stdout.write("Admin already exists")
+            self.stdout.write("Superadmin already exists")
 
         self.stdout.write(self.style.SUCCESS("Done"))
