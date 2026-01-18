@@ -36,4 +36,3 @@ class User(AbstractUser, BaseModel):
         if self.tenant:
             return f"{self.email} ({self.tenant.name})"
         return self.email
-

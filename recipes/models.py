@@ -128,5 +128,3 @@ class RecipeIngredient(BaseModel):
 
     def __str__(self):
         return f"{self.recipe.name} - {self.ingredient.name}"
-
-
