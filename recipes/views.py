@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from .models import Cuisine, Ingredient, Recipe, RecipeIngredient
-from .permissions import IsAdmin, IsOwnerOrAdmin, CanViewRecipe
+from .permissions import IsAdmin, IsOwnerOrAdmin, CanViewRecipe, HasTenant
 from .serializers import (
     CuisineSerializer,
     IngredientSerializer,
@@ -19,16 +19,18 @@ from users.enums import UserRole
 class CuisineViewSet(viewsets.ViewSet):
     def get_permissions(self):
         if self.action in ["create", "partial_update", "destroy"]:
-            permission_classes = [IsAuthenticated, IsAdmin]
+            permission_classes = [IsAuthenticated, HasTenant, IsAdmin]
         else:
-            permission_classes = [IsAuthenticated]
+            permission_classes = [IsAuthenticated, HasTenant]
 
         return [permission() for permission in permission_classes]
 
     def get_queryset(self, request):
+        tenant = request.tenant
+
         if request.user.role == UserRole.ADMIN:
-            return Cuisine.objects.all()
-        return Cuisine.objects.filter(is_active=True)
+            return Cuisine.objects.filter(tenant=tenant)
+        return Cuisine.objects.filter(tenant=tenant, is_active=True)
 
     def list(self, request):
         cuisines = self.get_queryset(request)
@@ -48,24 +50,30 @@ class CuisineViewSet(viewsets.ViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def create(self, request):
+        tenant = request.tenant
         name = request.data.get("name")
 
-        old = Cuisine.objects.filter(name=name, is_active=False).first()
+        if name:
+            old = Cuisine.objects.filter(
+                tenant=tenant, name=name.strip(), is_active=False
+            ).first()
 
-        if old:
-            old.is_active = True
-            old.deleted_at = None
-            old.save()
-            serializer = CuisineSerializer(old, context={"request": request})
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            if old:
+                old.is_active = True
+                old.deleted_at = None
+                old.save()
+                serializer = CuisineSerializer(old, context={"request": request})
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         serializer = CuisineSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        serializer.save(tenant=tenant)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
-        cuisine = get_object_or_404(Cuisine, pk=pk, is_active=True)
+        tenant = request.tenant
+        cuisine = get_object_or_404(Cuisine, pk=pk, tenant=tenant, is_active=True)
+
         serializer = CuisineSerializer(
             cuisine, data=request.data, partial=True, context={"request": request}
         )
@@ -74,9 +82,12 @@ class CuisineViewSet(viewsets.ViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def destroy(self, request, pk=None):
-        cuisine = get_object_or_404(Cuisine, pk=pk, is_active=True)
+        tenant = request.tenant
+        cuisine = get_object_or_404(Cuisine, pk=pk, tenant=tenant, is_active=True)
 
-        is_used = Recipe.objects.filter(cuisine=cuisine, is_active=True).exists()
+        is_used = Recipe.objects.filter(
+            tenant=tenant, cuisine=cuisine, is_active=True
+        ).exists()
 
         if is_used:
             return Response(
@@ -99,16 +110,18 @@ class IngredientViewSet(viewsets.ViewSet):
 
     def get_permissions(self):
         if self.action in ["create", "partial_update", "destroy"]:
-            permission_classes = [IsAuthenticated, IsAdmin]
+            permission_classes = [IsAuthenticated, HasTenant, IsAdmin]
         else:
-            permission_classes = [IsAuthenticated]
+            permission_classes = [IsAuthenticated, HasTenant]
 
         return [permission() for permission in permission_classes]
 
     def get_queryset(self, request):
+        tenant = request.tenant
+
         if request.user.role == UserRole.ADMIN:
-            return Ingredient.objects.all()
-        return Ingredient.objects.filter(is_active=True)
+            return Ingredient.objects.filter(tenant=tenant)
+        return Ingredient.objects.filter(tenant=tenant, is_active=True)
 
     def list(self, request):
         ingredients = self.get_queryset(request)
@@ -128,26 +141,32 @@ class IngredientViewSet(viewsets.ViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def create(self, request):
+        tenant = request.tenant
         name = request.data.get("name")
 
-        old = Ingredient.objects.filter(name=name, is_active=False).first()
+        if name:
+            old = Ingredient.objects.filter(
+                tenant=tenant, name=name.strip(), is_active=False
+            ).first()
 
-        if old:
-            old.is_active = True
-            old.deleted_at = None
-            old.save()
-            serializer = IngredientSerializer(old, context={"request": request})
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            if old:
+                old.is_active = True
+                old.deleted_at = None
+                old.save()
+                serializer = IngredientSerializer(old, context={"request": request})
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         serializer = IngredientSerializer(
             data=request.data, context={"request": request}
         )
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        serializer.save(tenant=tenant)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
-        ingredient = get_object_or_404(Ingredient, pk=pk, is_active=True)
+        tenant = request.tenant
+        ingredient = get_object_or_404(Ingredient, pk=pk, tenant=tenant, is_active=True)
+
         serializer = IngredientSerializer(
             ingredient, data=request.data, partial=True, context={"request": request}
         )
@@ -156,10 +175,11 @@ class IngredientViewSet(viewsets.ViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def destroy(self, request, pk=None):
-        ingredient = get_object_or_404(Ingredient, pk=pk, is_active=True)
+        tenant = request.tenant
+        ingredient = get_object_or_404(Ingredient, pk=pk, tenant=tenant, is_active=True)
 
         is_used = RecipeIngredient.objects.filter(
-            ingredient=ingredient, recipe__is_active=True
+            tenant=tenant, ingredient=ingredient, recipe__is_active=True
         ).exists()
 
         if is_used:
@@ -181,22 +201,24 @@ class RecipeViewSet(viewsets.ViewSet):
 
     def get_permissions(self):
         if self.action in ["partial_update", "destroy"]:
-            permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
+            permission_classes = [IsAuthenticated, HasTenant, IsOwnerOrAdmin]
         elif self.action == "retrieve":
-            permission_classes = [IsAuthenticated, CanViewRecipe]
+            permission_classes = [IsAuthenticated, HasTenant, CanViewRecipe]
         else:
-            permission_classes = [IsAuthenticated]
+            permission_classes = [IsAuthenticated, HasTenant]
 
         return [permission() for permission in permission_classes]
 
     def get_queryset(self, request):
         user = request.user
+        tenant = request.tenant
 
         if user.role == UserRole.ADMIN:
-            return Recipe.objects.all()
+            return Recipe.objects.filter(tenant=tenant)
         else:
             return Recipe.objects.filter(
                 Q(user=user) | Q(sharing_status="PUBLIC"),
+                tenant=tenant,
                 is_active=True,
             )
 
@@ -214,7 +236,6 @@ class RecipeViewSet(viewsets.ViewSet):
                 for cuisine_id in cuisine_ids_param.split(",")
                 if cuisine_id.strip()
             ]
-
             recipes = recipes.filter(cuisine__id__in=cuisine_ids)
 
         sharing_status = request.query_params.get("sharing_status")
@@ -228,7 +249,6 @@ class RecipeViewSet(viewsets.ViewSet):
                 for ingredient_id in ingredient_ids_param.split(",")
                 if ingredient_id.strip()
             ]
-
             recipes = recipes.filter(
                 recipe_ingredients__ingredient__id__in=ingredient_ids
             ).distinct()
@@ -260,7 +280,8 @@ class RecipeViewSet(viewsets.ViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
-        recipe = get_object_or_404(Recipe, pk=pk, is_active=True)
+        tenant = request.tenant
+        recipe = get_object_or_404(Recipe, pk=pk, tenant=tenant, is_active=True)
         self.check_object_permissions(request, recipe)
 
         serializer = RecipeSerializer(
@@ -272,7 +293,8 @@ class RecipeViewSet(viewsets.ViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def destroy(self, request, pk=None):
-        recipe = get_object_or_404(Recipe, pk=pk, is_active=True)
+        tenant = request.tenant
+        recipe = get_object_or_404(Recipe, pk=pk, tenant=tenant, is_active=True)
         self.check_object_permissions(request, recipe)
 
         recipe.is_active = False

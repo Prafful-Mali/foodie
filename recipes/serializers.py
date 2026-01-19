@@ -18,6 +18,25 @@ class CuisineSerializer(serializers.ModelSerializer):
                 self.fields["is_active"] = serializers.BooleanField(read_only=True)
                 self.fields["deleted_at"] = serializers.DateTimeField(read_only=True)
 
+    def validate_name(self, value):
+        request = self.context.get("request")
+        if not request or not request.tenant:
+            raise serializers.ValidationError("User must belong to a tenant.")
+
+        value = value.strip()
+        tenant = request.tenant
+        queryset = Cuisine.objects.filter(tenant=tenant, name=value, is_active=True)
+
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+
+        if queryset.exists():
+            raise serializers.ValidationError(
+                "A cuisine with this name already exists in your organization."
+            )
+
+        return value
+
 
 class IngredientSerializer(serializers.ModelSerializer):
     class Meta:
@@ -34,6 +53,25 @@ class IngredientSerializer(serializers.ModelSerializer):
                 self.fields["is_active"] = serializers.BooleanField(read_only=True)
                 self.fields["deleted_at"] = serializers.DateTimeField(read_only=True)
 
+    def validate_name(self, value):
+        request = self.context.get("request")
+        if not request or not request.tenant:
+            raise serializers.ValidationError("User must belong to a tenant.")
+
+        value = value.strip()
+        tenant = request.tenant
+        queryset = Ingredient.objects.filter(tenant=tenant, name=value, is_active=True)
+
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+
+        if queryset.exists():
+            raise serializers.ValidationError(
+                "An ingredient with this name already exists in your organization."
+            )
+
+        return value
+
 
 class RecipeIngredientSerializer(serializers.ModelSerializer):
     ingredient_id = serializers.UUIDField(write_only=True)
@@ -45,9 +83,17 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
         read_only_fields = ["id"]
 
     def validate_ingredient_id(self, value):
-        if not Ingredient.objects.filter(id=value, is_active=True).exists():
+        request = self.context.get("request")
+        if not request or not request.tenant:
+            raise serializers.ValidationError("User must belong to a tenant.")
+
+        tenant = request.tenant
+
+        if not Ingredient.objects.filter(
+            id=value, tenant=tenant, is_active=True
+        ).exists():
             raise serializers.ValidationError(
-                "Ingredient does not exist or is inactive."
+                "Ingredient does not exist or is inactive in your organization."
             )
         return value
 
@@ -89,25 +135,65 @@ class RecipeSerializer(serializers.ModelSerializer):
         if value is None:
             return value
 
-        if not Cuisine.objects.filter(id=value, is_active=True).exists():
-            raise serializers.ValidationError("Cuisine does not exist or is inactive.")
+        request = self.context.get("request")
+        if not request or not request.tenant:
+            raise serializers.ValidationError("User must belong to a tenant.")
+
+        tenant = request.tenant
+
+        if not Cuisine.objects.filter(id=value, tenant=tenant, is_active=True).exists():
+            raise serializers.ValidationError(
+                "Cuisine does not exist or is inactive in your organization."
+            )
 
         return value
+
+    def validate_name(self, value):
+        request = self.context.get("request")
+        if not request or not request.tenant:
+            raise serializers.ValidationError("User must belong to a tenant.")
+
+        value = value.strip()
+        tenant = request.tenant
+        queryset = Recipe.objects.filter(tenant=tenant, name=value, is_active=True)
+
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+
+        if queryset.exists():
+            raise serializers.ValidationError(
+                "A recipe with this name already exists in your organization."
+            )
+
+        return value
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        if not request or not request.tenant:
+            raise serializers.ValidationError("User must belong to a tenant.")
+
+        return attrs
 
     def create(self, validated_data):
         recipe_ingredients_data = validated_data.pop("recipe_ingredients", [])
         cuisine_id = validated_data.pop("cuisine_id", None)
 
-        if cuisine_id:
-            validated_data["cuisine"] = Cuisine.objects.get(id=cuisine_id)
+        request = self.context.get("request")
+        tenant = request.tenant
 
+        if cuisine_id:
+            validated_data["cuisine"] = Cuisine.objects.get(
+                id=cuisine_id, tenant=tenant
+            )
+
+        validated_data["tenant"] = tenant
         recipe = Recipe.objects.create(**validated_data)
 
         for ingredient_data in recipe_ingredients_data:
             ingredient_id = ingredient_data.pop("ingredient_id")
-            ingredient = Ingredient.objects.get(id=ingredient_id)
+            ingredient = Ingredient.objects.get(id=ingredient_id, tenant=tenant)
             RecipeIngredient.objects.create(
-                recipe=recipe, ingredient=ingredient, **ingredient_data
+                recipe=recipe, ingredient=ingredient, tenant=tenant, **ingredient_data
             )
 
         return recipe
@@ -116,9 +202,12 @@ class RecipeSerializer(serializers.ModelSerializer):
         recipe_ingredients_data = validated_data.pop("recipe_ingredients", None)
         cuisine_id = validated_data.pop("cuisine_id", None)
 
+        request = self.context.get("request")
+        tenant = request.tenant
+
         if "cuisine_id" in self.initial_data:
             if cuisine_id:
-                instance.cuisine = Cuisine.objects.get(id=cuisine_id)
+                instance.cuisine = Cuisine.objects.get(id=cuisine_id, tenant=tenant)
             else:
                 instance.cuisine = None
 
@@ -132,9 +221,12 @@ class RecipeSerializer(serializers.ModelSerializer):
 
             for ingredient_data in recipe_ingredients_data:
                 ingredient_id = ingredient_data.pop("ingredient_id")
-                ingredient = Ingredient.objects.get(id=ingredient_id)
+                ingredient = Ingredient.objects.get(id=ingredient_id, tenant=tenant)
                 RecipeIngredient.objects.create(
-                    recipe=instance, ingredient=ingredient, **ingredient_data
+                    recipe=instance,
+                    ingredient=ingredient,
+                    tenant=tenant,
+                    **ingredient_data,
                 )
 
         return instance
