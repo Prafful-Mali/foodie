@@ -19,7 +19,9 @@ router = DefaultRouter()
 router.register("users", UserViewSet, basename="user")
 
 urlpatterns = [
-    path("tenants/<uuid:tenant_id>/register/", RegisterAPIView.as_view(), name="register"),
+    path(
+        "tenants/<uuid:tenant_id>/register/", RegisterAPIView.as_view(), name="register"
+    ),
     path("auth/login/", LoginAPIView.as_view(), name="login"),
     path(
         "auth/login/verify-otp/",

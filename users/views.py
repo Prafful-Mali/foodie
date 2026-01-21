@@ -39,8 +39,8 @@ from .utils import get_user_id_from_token, delete_reset_token
 class RegisterAPIView(APIView):
     def post(self, request, tenant_id=None):
         data = request.data.copy()
-        data['tenant_id'] = tenant_id
-        
+        data["tenant_id"] = tenant_id
+
         serializer = RegisterSerializer(data=data)
 
         serializer.is_valid(raise_exception=True)
@@ -244,7 +244,7 @@ class UserViewSet(viewsets.ViewSet):
 
     def get_queryset(self, request):
         if request.user.is_superadmin:
-            return User.objects.filter(role=UserRole.ADMIN, is_active=True)
+            return User.objects.filter(role=UserRole.ADMIN)
         elif request.user.role == UserRole.ADMIN:
             return User.objects.filter(tenant=request.user.tenant)
         return User.objects.filter(id=request.user.id, is_active=True)
@@ -266,15 +266,17 @@ class UserViewSet(viewsets.ViewSet):
         return paginator.get_paginated_response(serializer.data)
 
     def create(self, request):
-        serializer = CreateUserSerializer(data=request.data, context={"request": request})
+        serializer = CreateUserSerializer(
+            data=request.data, context={"request": request}
+        )
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        
+
         response_serializer = UserSerializer(user, context={"request": request})
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
-    
+
     def retrieve(self, request, pk=None):
-        if request.user.role == UserRole.ADMIN:
+        if request.user.role == UserRole.ADMIN or request.user.is_superadmin:
             user = get_object_or_404(User, pk=pk)
         else:
             user = get_object_or_404(User, pk=pk, is_active=True)
