@@ -289,9 +289,13 @@ class TokenRefreshSerializer(serializers.Serializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
-    tenant_id = serializers.UUIDField(source='tenant.id', read_only=True, allow_null=True)
-    tenant_name = serializers.CharField(source='tenant.name', read_only=True, allow_null=True)
-    
+    tenant_id = serializers.UUIDField(
+        source="tenant.id", read_only=True, allow_null=True
+    )
+    tenant_name = serializers.CharField(
+        source="tenant.name", read_only=True, allow_null=True
+    )
+
     class Meta:
         model = User
         fields = [
@@ -323,7 +327,9 @@ class UserSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get("request")
-        if request and (request.user.role == UserRole.ADMIN or request.user.is_superadmin):
+        if request and (
+            request.user.role == UserRole.ADMIN or request.user.is_superadmin
+        ):
             self.fields["is_active"] = serializers.BooleanField()
             self.fields["deleted_at"] = serializers.DateTimeField(read_only=True)
 
@@ -431,25 +437,27 @@ class CreateUserSerializer(serializers.Serializer):
         if request.user.is_superadmin:
             if not tenant_id:
                 raise serializers.ValidationError(
-                    {"tenant_id": "Tenant ID is required for super admin to create users."}
+                    {
+                        "tenant_id": "Tenant ID is required for super admin to create users."
+                    }
                 )
-            
+
             if not Tenant.objects.filter(id=tenant_id, is_active=True).exists():
                 raise serializers.ValidationError(
                     {"tenant_id": "Invalid or inactive tenant."}
                 )
-        
+
         elif request.user.role == UserRole.ADMIN:
             if tenant_id:
                 raise serializers.ValidationError(
                     {"tenant_id": "Normal admins cannot specify tenant_id."}
                 )
-            
+
             if not request.user.tenant:
                 raise serializers.ValidationError(
                     {"detail": "Admin must belong to a tenant to create users."}
                 )
-        
+
         else:
             raise serializers.ValidationError(
                 {"detail": "Only admins can create users."}
@@ -461,7 +469,7 @@ class CreateUserSerializer(serializers.Serializer):
         validated_data.pop("confirm_password")
         password = validated_data.pop("password")
         request = self.context.get("request")
-        
+
         if request.user.is_superadmin:
             tenant_id = validated_data.pop("tenant_id")
             tenant = Tenant.objects.get(id=tenant_id)
@@ -469,18 +477,17 @@ class CreateUserSerializer(serializers.Serializer):
                 **validated_data,
                 role=UserRole.ADMIN,
                 tenant=tenant,
-                is_email_verified=True 
+                is_email_verified=True,
             )
         else:
-            validated_data.pop("tenant_id", None)  
+            validated_data.pop("tenant_id", None)
             user = User(
                 **validated_data,
                 role=UserRole.USER,
                 tenant=request.user.tenant,
-                is_email_verified=False
+                is_email_verified=False,
             )
-        
+
         user.set_password(password)
         user.save()
         return user
-

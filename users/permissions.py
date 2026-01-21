@@ -19,6 +19,13 @@ class IsOwnerOrAdmin(BasePermission):
 
 class CanDeleteUser(BasePermission):
     def has_object_permission(self, request, view, obj):
+        if request.user.is_superadmin:
+            return obj.role == "ADMIN"
+
         if request.user.role == "ADMIN":
-            return obj != request.user
+            return (
+                obj != request.user
+                and obj.tenant_id == request.tenant.id
+                and obj.role == "USER"
+            )
         return obj == request.user

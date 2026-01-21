@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "recipes",
     "common",
     "tenants",
+    "payments"
 ]
 
 MIDDLEWARE = [
