@@ -1,3 +1,4 @@
+from users.models import User
 from rest_framework import serializers
 from .models import Cuisine, Ingredient, Recipe, RecipeIngredient
 from users.enums import UserRole
@@ -100,6 +101,9 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
 
 class RecipeSerializer(serializers.ModelSerializer):
     user_id = serializers.UUIDField(source="user.id", read_only=True)
+    target_user_id = serializers.UUIDField(
+        write_only=True, required=False, allow_null=True
+    )
     cuisine_id = serializers.UUIDField(required=False, allow_null=True, write_only=True)
     cuisine = CuisineSerializer(read_only=True)
     recipe_ingredients = RecipeIngredientSerializer(many=True, required=False)
@@ -109,6 +113,7 @@ class RecipeSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "user_id",
+            "target_user_id",
             "cuisine_id",
             "cuisine",
             "name",
@@ -130,6 +135,24 @@ class RecipeSerializer(serializers.ModelSerializer):
             if request.user.role == UserRole.ADMIN:
                 self.fields["is_active"] = serializers.BooleanField(read_only=True)
                 self.fields["deleted_at"] = serializers.DateTimeField(read_only=True)
+
+    def validate_target_user_id(self, value):
+        if value is None:
+            return value
+
+        request = self.context.get("request")
+        if not request:
+            raise serializers.ValidationError("Request context is required.")
+
+        if request.user.role != UserRole.ADMIN:
+            raise serializers.ValidationError(
+                "Only admins can create recipes for other users."
+            )
+
+        if not User.objects.filter(id=value, is_active=True).exists():
+            raise serializers.ValidationError("User does not exist or is inactive.")
+
+        return value
 
     def validate_cuisine_id(self, value):
         if value is None:

@@ -275,7 +275,16 @@ class RecipeViewSet(viewsets.ViewSet):
     def create(self, request):
         serializer = RecipeSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
-        serializer.save(user=request.user)
+
+        target_user_id = serializer.validated_data.pop("target_user_id", None)
+
+        if target_user_id and request.user.role == UserRole.ADMIN:
+            from users.models import User
+
+            target_user = User.objects.get(id=target_user_id)
+            serializer.save(user=target_user)
+        else:
+            serializer.save(user=request.user)
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
