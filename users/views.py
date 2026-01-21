@@ -21,6 +21,7 @@ from .serializers import (
     ResetPasswordSerializer,
     LoginVerifyOTPSerializer,
     LoginResendOTPSerializer,
+    CreateUserSerializer,
 )
 from common.pagination import DefaultPagination
 from .permissions import IsAdmin, IsOwnerOrAdmin, CanDeleteUser
@@ -36,8 +37,11 @@ from .utils import get_user_id_from_token, delete_reset_token
 
 
 class RegisterAPIView(APIView):
-    def post(self, request):
-        serializer = RegisterSerializer(data=request.data)
+    def post(self, request, tenant_id=None):
+        data = request.data.copy()
+        data['tenant_id'] = tenant_id
+        
+        serializer = RegisterSerializer(data=data)
 
         serializer.is_valid(raise_exception=True)
 
@@ -228,7 +232,7 @@ class TokenRefreshAPIView(APIView):
 
 class UserViewSet(viewsets.ViewSet):
     def get_permissions(self):
-        if self.action in ["list", "partial_update"]:
+        if self.action in ["list", "partial_update", "create"]:
             permission_classes = [IsAuthenticated, IsAdmin]
         elif self.action in ["retrieve"]:
             permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
@@ -239,8 +243,10 @@ class UserViewSet(viewsets.ViewSet):
         return [permission() for permission in permission_classes]
 
     def get_queryset(self, request):
-        if request.user.role == UserRole.ADMIN:
-            return User.objects.all()
+        if request.user.is_superadmin:
+            return User.objects.filter(role=UserRole.ADMIN, is_active=True)
+        elif request.user.role == UserRole.ADMIN:
+            return User.objects.filter(tenant=request.user.tenant)
         return User.objects.filter(id=request.user.id, is_active=True)
 
     def list(self, request):
@@ -259,6 +265,14 @@ class UserViewSet(viewsets.ViewSet):
         )
         return paginator.get_paginated_response(serializer.data)
 
+    def create(self, request):
+        serializer = CreateUserSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        
+        response_serializer = UserSerializer(user, context={"request": request})
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+    
     def retrieve(self, request, pk=None):
         if request.user.role == UserRole.ADMIN:
             user = get_object_or_404(User, pk=pk)
