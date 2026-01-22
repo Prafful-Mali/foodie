@@ -3,7 +3,7 @@ from django.db import models
 from common.models import BaseModel
 
 
-from .enums import SubscriptionStatus, PaymentStatus
+from common.enums import SubscriptionStatus, PaymentStatus
 
 
 class Subscription(BaseModel):

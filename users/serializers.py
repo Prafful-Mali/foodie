@@ -3,7 +3,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.cache import cache
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User
-from .enums import UserRole
+from common.enums import UserRole
 from tenants.models import Tenant
 
 

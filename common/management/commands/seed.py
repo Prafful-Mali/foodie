@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from users.models import User
-from users.enums import UserRole
+from common.enums import UserRole
 
 
 class Command(BaseCommand):
@@ -35,7 +35,7 @@ class Command(BaseCommand):
 
 # from users.models import User
 # from tenants.models import Tenant
-# from users.enums import UserRole
+# from common.enums import UserRole
 
 # tenant = Tenant.objects.get(id="67d065c1-911d-4871-9e3b-dfff0fb33ad1")
 

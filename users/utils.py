@@ -1,6 +1,6 @@
 from django.core.cache import cache
 
-RESET_TOKEN_TTL = 15 * 60
+from common.constants import RESET_TOKEN_TTL
 
 
 def set_reset_token(token: str, user_id: str):

@@ -1,7 +1,7 @@
 from users.models import User
 from rest_framework import serializers
 from .models import Cuisine, Ingredient, Recipe, RecipeIngredient
-from users.enums import UserRole
+from common.enums import UserRole
 
 
 class CuisineSerializer(serializers.ModelSerializer):
