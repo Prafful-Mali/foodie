@@ -1,5 +1,5 @@
 from rest_framework.permissions import BasePermission
-from users.enums import UserRole
+from common.enums import UserRole
 
 
 class HasTenant(BasePermission):

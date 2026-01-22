@@ -13,7 +13,7 @@ from .serializers import (
     RecipeListSerializer,
 )
 from common.pagination import DefaultPagination
-from users.enums import UserRole
+from common.enums import UserRole
 
 
 class CuisineViewSet(viewsets.ViewSet):

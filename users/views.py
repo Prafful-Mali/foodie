@@ -32,7 +32,7 @@ from .tasks import (
     send_reset_password_email,
     send_login_otp_email,
 )
-from .enums import UserRole
+from common.enums import UserRole
 from .utils import get_user_id_from_token, delete_reset_token
 
 

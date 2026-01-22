@@ -9,8 +9,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from common.pagination import DefaultPagination
+from common.constants import LIFETIME_AMOUNT_PAISE
 from .models import Subscription, Payment, WebhookEvent
-from .enums import SubscriptionStatus, PaymentStatus
+from common.enums import SubscriptionStatus, PaymentStatus
 from .serializers import (
     SubscriptionSerializer,
     VerifyPaymentSerializer,
@@ -21,8 +22,6 @@ from .permissions import IsTenantAdmin
 razorpay_client = razorpay.Client(
     auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
 )
-
-LIFETIME_AMOUNT_PAISE = 499 * 100
 
 
 class SubscriptionViewSet(viewsets.ViewSet):
