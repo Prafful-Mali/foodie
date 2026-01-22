@@ -1,5 +1,6 @@
 from django.db import models
 
+
 class SubscriptionStatus(models.TextChoices):
     PENDING = "pending", "Pending"
     PAID = "paid", "Paid"

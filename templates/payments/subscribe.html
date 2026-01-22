@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upgrade to Premium</title>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+</head>
+<body>
+    <h2>Upgrade to Lifetime Premium</h2>
+
+    <div style="margin-bottom: 16px;">
+        <label>Access Token (JWT)</label><br />
+        <textarea
+            id="token"
+            rows="4"
+            cols="80"
+            placeholder="Paste your Bearer token here"
+        ></textarea>
+    </div>
+
+    <button id="pay-btn">Pay ₹499</button>
+
+    <script>
+        document.getElementById("pay-btn").onclick = async function () {
+            const token = document.getElementById("token").value.trim();
+
+            if (!token) {
+                alert("Please paste an access token first.");
+                return;
+            }
+
+            const res = await fetch("/api/v1/subscriptions/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                },
+                body: JSON.stringify({ amount: 49900 })
+            });
+            if (res.status === 401) {
+                let msg = "Session expired. Please log in again.";
+                try {
+                    const err = await res.json();
+                    msg = err.detail || msg;
+                } catch (e) {}
+                alert(msg);
+                return;
+            }
+            if (!res.ok) {
+                const err = await res.json();
+                alert(err.error || "Failed to create order");
+                return;
+            }
+
+            const data = await res.json();
+
+            const options = {
+                key: "{{ razorpay_key_id }}",
+                amount: data.amount,
+                currency: "INR",
+                name: "Foodie",
+                description: "Lifetime Premium",
+                order_id: data.order_id,
+                handler: async function (response) {
+                    const verifyRes = await fetch("/api/v1/payments/verify/", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_signature: response.razorpay_signature,
+                        }),
+                    });
+
+                    if (!verifyRes.ok) {
+                        const err = await verifyRes.json();
+                        alert(err.detail || "Verification failed");
+                        return;
+                    }
+
+                    alert("Payment verified. Premium activated!");
+                }
+            };
+
+            const rzp = new Razorpay(options);
+            rzp.open();
+        };
+    </script>
+</body>
+</html>

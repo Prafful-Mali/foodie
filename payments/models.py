@@ -17,10 +17,7 @@ class Subscription(BaseModel):
     )
 
     razorpay_order_id = models.CharField(
-        max_length=100,
-        unique=True,
-        null=True,
-        blank=True
+        max_length=100, unique=True, null=True, blank=True
     )
 
     amount = models.PositiveIntegerField(help_text="Amount in paise")

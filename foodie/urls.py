@@ -23,6 +23,7 @@ urlpatterns = [
     path("api/v1/", include("users.urls")),
     path("api/v1/", include("recipes.urls")),
     path("api/v1/", include("tenants.urls")),
+    path("", include("payments.urls")),
 ]
 
 handler404 = "common.exceptions.custom_404_handler"
