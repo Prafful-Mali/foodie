@@ -31,6 +31,7 @@ from .tasks import (
     hard_delete_user,
     send_reset_password_email,
     send_login_otp_email,
+    send_setup_password_email,
 )
 from common.enums import UserRole
 from .utils import get_user_id_from_token, delete_reset_token
@@ -272,8 +273,15 @@ class UserViewSet(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
-        response_serializer = UserSerializer(user, context={"request": request})
-        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+        base_url = request.build_absolute_uri("/")[:-1]
+        send_setup_password_email.delay(user.email, base_url)
+
+        return Response(
+            {
+                "message": "User created successfully. An email has been sent to them to set their password."
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
     def retrieve(self, request, pk=None):
         if request.user.role == UserRole.ADMIN or request.user.is_superadmin:
@@ -397,6 +405,42 @@ class ResetPasswordPage(APIView):
         user = User.objects.get(id=user_id)
         user.set_password(serializer.validated_data["new_password"])
         user.save(update_fields=["password"])
+
+        delete_reset_token(token)
+
+        return Response(
+            {"success": True},
+            status=status.HTTP_200_OK,
+        )
+
+
+class SetupPasswordPage(APIView):
+
+    def get(self, request, token):
+        user_id = get_user_id_from_token(token)
+        if not user_id:
+            return Response(
+                {"error": "Invalid or expired token"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return render(request, "setup_password.html", {"token": token})
+
+    def post(self, request, token):
+        user_id = get_user_id_from_token(token)
+        if not user_id:
+            return Response(
+                {"error": "Invalid or expired token"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = ResetPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = User.objects.get(id=user_id)
+        user.set_password(serializer.validated_data["new_password"])
+        user.is_email_verified = True
+        user.save(update_fields=["password", "is_email_verified"])
 
         delete_reset_token(token)
 

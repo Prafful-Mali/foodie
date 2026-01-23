@@ -13,6 +13,7 @@ from .views import (
     ResetPasswordPage,
     LoginVerifyOTPAPIView,
     LoginResendOTPAPIView,
+    SetupPasswordPage,
 )
 
 router = DefaultRouter()
@@ -45,6 +46,11 @@ urlpatterns = [
         "reset-password/<str:token>/",
         ResetPasswordPage.as_view(),
         name="reset_password",
+    ),
+    path(
+        "setup-password/<str:token>/",
+        SetupPasswordPage.as_view(),
+        name="setup_password",
     ),
     path("", include(router.urls)),
 ]
