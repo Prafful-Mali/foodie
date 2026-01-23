@@ -392,8 +392,10 @@ class CreateUserSerializer(serializers.Serializer):
     first_name = serializers.CharField(min_length=3, max_length=150)
     last_name = serializers.CharField(min_length=3, max_length=150)
     email = serializers.EmailField()
-    password = serializers.CharField(write_only=True, min_length=8)
-    confirm_password = serializers.CharField(write_only=True, min_length=8)
+    password = serializers.CharField(write_only=True, min_length=8, required=False)
+    confirm_password = serializers.CharField(
+        write_only=True, min_length=8, required=False
+    )
     tenant_id = serializers.UUIDField(required=False, allow_null=True)
     is_email_verified = serializers.BooleanField(read_only=True)
 
@@ -414,7 +416,7 @@ class CreateUserSerializer(serializers.Serializer):
 
     def validate_email(self, value):
         value = value.lower()
-        if User.objects.filter(email=value, is_active=True).exists():
+        if User.objects.filter(email=value).exists():
             raise serializers.ValidationError("Email already exists.")
         return value
 
@@ -426,12 +428,14 @@ class CreateUserSerializer(serializers.Serializer):
         password = attrs.get("password")
         confirm_password = attrs.get("confirm_password")
 
-        if password != confirm_password:
+        request = self.context.get("request")
+
+        if password and confirm_password and password != confirm_password:
             raise serializers.ValidationError(
                 {"confirm_password": "Passwords do not match."}
             )
 
-        request = self.context.get("request")
+
         tenant_id = attrs.get("tenant_id")
 
         if request.user.is_superadmin:
@@ -466,8 +470,8 @@ class CreateUserSerializer(serializers.Serializer):
         return attrs
 
     def create(self, validated_data):
-        validated_data.pop("confirm_password")
-        password = validated_data.pop("password")
+        validated_data.pop("confirm_password", None)
+        password = validated_data.pop("password", None)
         request = self.context.get("request")
 
         if request.user.is_superadmin:
@@ -477,7 +481,7 @@ class CreateUserSerializer(serializers.Serializer):
                 **validated_data,
                 role=UserRole.ADMIN,
                 tenant=tenant,
-                is_email_verified=True,
+                is_email_verified=False,
             )
         else:
             validated_data.pop("tenant_id", None)
@@ -488,6 +492,10 @@ class CreateUserSerializer(serializers.Serializer):
                 is_email_verified=False,
             )
 
-        user.set_password(password)
+        if password:
+            user.set_password(password)
+        else:
+            user.set_unusable_password()
+
         user.save()
         return user

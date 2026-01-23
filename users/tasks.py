@@ -86,6 +86,35 @@ def send_reset_password_email(to_email, base_url):
 
 
 @shared_task
+def send_setup_password_email(to_email, base_url):
+    user = User.objects.filter(email=to_email).first()
+    if not user:
+        return
+
+    token = uuid.uuid4().hex
+    set_reset_token(token, user.id)
+
+    setup_link = f"{base_url}/api/v1/setup-password/{token}/"
+
+    context = {
+        "user": user,
+        "setup_link": setup_link,
+    }
+
+    html_content = render_to_string("emails/setup_password.html", context)
+    text_content = f"Set your password using this link:\n{setup_link}"
+
+    send_mail(
+        subject="Set your password",
+        message=text_content,
+        from_email=settings.EMAIL_HOST_USER,
+        recipient_list=[to_email],
+        html_message=html_content,
+        fail_silently=False,
+    )
+
+
+@shared_task
 def send_login_otp_email(to_email):
 
     otp = f"{secrets.randbelow(1000000):06d}"
