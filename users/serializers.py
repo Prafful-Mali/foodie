@@ -1,3 +1,4 @@
+import re
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from django.core.cache import cache
@@ -5,6 +6,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User
 from common.enums import UserRole
 from tenants.models import Tenant
+from .utils import hash_otp
 
 
 class RegisterSerializer(serializers.Serializer):
@@ -223,7 +225,7 @@ class LoginVerifyOTPSerializer(serializers.Serializer):
                 {"detail": "OTP expired. Please request a new one."}
             )
 
-        if cached_otp != otp:
+        if cached_otp != hash_otp(otp):
             raise serializers.ValidationError({"detail": "Invalid OTP"})
 
         attrs["email"] = email

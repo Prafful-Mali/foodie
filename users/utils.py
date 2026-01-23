@@ -8,6 +8,10 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def hash_otp(otp: str) -> str:
+    return hash_token(otp)
+
+
 def set_reset_token(token: str, user_id: str):
     hashed_token = hash_token(token)
     cache.set(f"pwd-reset:{hashed_token}", str(user_id), timeout=RESET_TOKEN_TTL)

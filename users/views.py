@@ -34,7 +34,7 @@ from .tasks import (
     send_setup_password_email,
 )
 from common.enums import UserRole
-from .utils import get_user_id_from_token, delete_reset_token
+from .utils import get_user_id_from_token, delete_reset_token, hash_otp
 
 
 class RegisterAPIView(APIView):
@@ -79,7 +79,7 @@ class VerifyOTPAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if str(saved_otp) != str(user_otp):
+        if str(saved_otp) != hash_otp(str(user_otp)):
             return Response(
                 {"error": "Invalid OTP"},
                 status=status.HTTP_400_BAD_REQUEST,

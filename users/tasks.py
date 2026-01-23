@@ -7,14 +7,14 @@ from celery import shared_task
 from django.core.mail import send_mail
 from django.utils import timezone
 from datetime import timedelta
-from .utils import set_reset_token
+from .utils import set_reset_token, hash_otp
 from .models import User
 
 
 @shared_task
 def send_verification_email(to_email):
     otp = f"{secrets.randbelow(1000000):06d}"
-    cache.set(f"otp:{to_email}", otp, timeout=300)
+    cache.set(f"otp:{to_email}", hash_otp(otp), timeout=300)
 
     context = {
         "otp": otp,
@@ -27,7 +27,7 @@ def send_verification_email(to_email):
     send_mail(
         subject="Your OTP for verification",
         message=text_content,
-        from_email=settings.EMAIL_HOST_USER,
+        from_email=None,
         recipient_list=[to_email],
         html_message=html_content,
         fail_silently=False,
@@ -78,7 +78,7 @@ def send_reset_password_email(to_email, base_url):
     send_mail(
         subject="Reset your password",
         message=text_content,
-        from_email=settings.EMAIL_HOST_USER,
+        from_email=None,
         recipient_list=[to_email],
         html_message=html_content,
         fail_silently=False,
@@ -107,7 +107,7 @@ def send_setup_password_email(to_email, base_url):
     send_mail(
         subject="Set your password",
         message=text_content,
-        from_email=settings.EMAIL_HOST_USER,
+        from_email=None,
         recipient_list=[to_email],
         html_message=html_content,
         fail_silently=False,
@@ -119,7 +119,7 @@ def send_login_otp_email(to_email):
 
     otp = f"{secrets.randbelow(1000000):06d}"
 
-    cache.set(f"login_otp:{to_email}", otp, timeout=300)
+    cache.set(f"login_otp:{to_email}", hash_otp(otp), timeout=300)
 
     context = {
         "otp": otp,
@@ -132,7 +132,7 @@ def send_login_otp_email(to_email):
     send_mail(
         subject="Your Login OTP",
         message=text_content,
-        from_email=settings.EMAIL_HOST_USER,
+        from_email=None,
         recipient_list=[to_email],
         html_message=html_content,
         fail_silently=False,
