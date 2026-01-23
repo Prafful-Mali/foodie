@@ -1,3 +1,4 @@
+import re
 from users.models import User
 from rest_framework import serializers
 from .models import Cuisine, Ingredient, Recipe, RecipeIngredient
@@ -24,7 +25,13 @@ class CuisineSerializer(serializers.ModelSerializer):
         if not request or not request.tenant:
             raise serializers.ValidationError("User must belong to a tenant.")
 
-        value = value.strip()
+        value = re.sub(r"\s+", " ", value.strip())
+
+        if not all(x.isalpha() or x.isspace() for x in value):
+            raise serializers.ValidationError(
+                "Cuisine name must contain only alphabets and spaces."
+            )
+
         tenant = request.tenant
         queryset = Cuisine.objects.filter(tenant=tenant, name=value, is_active=True)
 
@@ -59,7 +66,13 @@ class IngredientSerializer(serializers.ModelSerializer):
         if not request or not request.tenant:
             raise serializers.ValidationError("User must belong to a tenant.")
 
-        value = value.strip()
+        value = re.sub(r"\s+", " ", value.strip())
+
+        if not all(x.isalpha() or x.isspace() for x in value):
+            raise serializers.ValidationError(
+                "Ingredient name must contain only alphabets and spaces."
+            )
+
         tenant = request.tenant
         queryset = Ingredient.objects.filter(tenant=tenant, name=value, is_active=True)
 
@@ -176,7 +189,13 @@ class RecipeSerializer(serializers.ModelSerializer):
         if not request or not request.tenant:
             raise serializers.ValidationError("User must belong to a tenant.")
 
-        value = value.strip()
+        value = re.sub(r"\s+", " ", value.strip())
+
+        if not all(x.isalpha() or x.isspace() for x in value):
+            raise serializers.ValidationError(
+                "Recipe name must contain only alphabets and spaces."
+            )
+
         tenant = request.tenant
         queryset = Recipe.objects.filter(tenant=tenant, name=value, is_active=True)
 

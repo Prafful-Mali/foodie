@@ -1,5 +1,5 @@
 from rest_framework.permissions import BasePermission
-from common.enums import UserRole
+from common.enums import UserRole, SharingStatus
 
 
 class HasTenant(BasePermission):
@@ -40,7 +40,7 @@ class CanViewRecipe(BasePermission):
         if request.user.role == UserRole.ADMIN:
             return obj.tenant == request.tenant
 
-        if obj.sharing_status == "PUBLIC" and obj.tenant == request.tenant:
+        if obj.sharing_status == SharingStatus.PUBLIC and obj.tenant == request.tenant:
             return True
 
         return obj.user == request.user
