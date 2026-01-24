@@ -1,3 +1,4 @@
+import logging
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from datetime import timedelta
@@ -19,6 +20,7 @@ from ..tasks import (
 )
 from common.enums import UserRole
 
+logger = logging.getLogger(__name__)
 
 class UserViewSet(viewsets.ViewSet):
     def get_permissions(self):
@@ -65,6 +67,8 @@ class UserViewSet(viewsets.ViewSet):
         base_url = request.build_absolute_uri("/")[:-1]
         send_setup_password_email.delay(user.email, base_url)
 
+        logger.info(f"Admin created user: {user.email}, tenant: {user.tenant_id}, by: {request.user.id}")
+
         return Response(
             {
                 "message": "User created successfully. An email has been sent to them to set their password."
@@ -98,6 +102,7 @@ class UserViewSet(viewsets.ViewSet):
                 user.is_active = True
                 user.deleted_at = None
                 user.save()
+                logger.info(f"User reactivated: {user.id} by: {request.user.id}")
             else:
                 raise ValidationError(
                     {"detail": "To restore a user, set is_active=true."}
@@ -134,6 +139,7 @@ class UserViewSet(viewsets.ViewSet):
             eta = now + timedelta(days=7)
 
         user.save()
+        logger.info(f"User deactivated: {user.id} by: {request.user.id}, scheduled for hard delete in {eta - now}")
 
         hard_delete_user.apply_async(
             args=[str(user.id)],

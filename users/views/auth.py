@@ -1,3 +1,4 @@
+import logging
 from django.shortcuts import get_object_or_404, render
 from django.core.cache import cache
 from rest_framework.views import APIView
@@ -25,6 +26,7 @@ from ..tasks import (
 )
 from ..utils import get_user_id_from_token, delete_reset_token, hash_otp
 
+logger = logging.getLogger(__name__)
 
 class RegisterAPIView(APIView):
     def post(self, request, tenant_id=None):
@@ -45,6 +47,8 @@ class RegisterAPIView(APIView):
             )
 
         send_verification_email.delay(user.email)
+
+        logger.info(f"User registered: {user.email}, tenant: {user.tenant_id}")
 
         return Response(
             {"message": "Registration successful. OTP sent to email."},
@@ -80,6 +84,8 @@ class VerifyOTPAPIView(APIView):
             user.save(update_fields=["is_email_verified"])
 
             cache.delete(f"otp:{email}")
+
+            logger.info(f"Email verified for user: {email}")
 
             return Response(
                 {
@@ -241,6 +247,8 @@ class ForgotPasswordAPIView(APIView):
         base_url = request.build_absolute_uri("/")[:-1]
 
         send_reset_password_email.delay(email, base_url)
+
+        logger.info(f"Password reset email requested for: {email}")
 
         return Response(
             {"message": "If the email exists, a reset link was sent."},
