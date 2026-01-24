@@ -135,6 +135,7 @@ class RecipeSerializer(serializers.ModelSerializer):
             "cooking_time",
             "sharing_status",
             "recipe_ingredients",
+            "picture",
             "created_at",
             "updated_at",
         ]
@@ -310,6 +311,7 @@ class RecipeListSerializer(serializers.ModelSerializer):
             "ingredients",
             "cooking_time",
             "sharing_status",
+            "picture",
             "created_at",
         ]
         read_only_fields = fields

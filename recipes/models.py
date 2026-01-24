@@ -82,6 +82,7 @@ class Recipe(BaseModel):
     ingredients = models.ManyToManyField(
         Ingredient, through="RecipeIngredient", related_name="recipes"
     )
+    picture = models.ImageField(upload_to="recipes/", null=True, blank=True)
     is_active = models.BooleanField(default=True, db_default=True)
 
     class Meta:

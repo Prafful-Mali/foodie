@@ -3,6 +3,7 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from rest_framework.response import Response
 from rest_framework import viewsets, status
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import IsAuthenticated
 from ..models import Recipe
 from ..permissions import IsOwnerOrAdmin, CanViewRecipe, HasTenant
@@ -15,6 +16,7 @@ from common.enums import UserRole
 
 
 class RecipeViewSet(viewsets.ViewSet):
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_permissions(self):
         if self.action in ["partial_update", "destroy"]:
