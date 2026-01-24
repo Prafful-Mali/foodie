@@ -1,3 +1,4 @@
+import logging
 import razorpay
 import traceback
 from django.shortcuts import render
@@ -7,7 +8,6 @@ from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
 from common.pagination import DefaultPagination
 from common.constants import LIFETIME_AMOUNT_PAISE
 from .models import Subscription, Payment, WebhookEvent
@@ -18,6 +18,7 @@ from .serializers import (
 )
 from .permissions import IsTenantAdmin
 
+logger = logging.getLogger(__name__)
 
 razorpay_client = razorpay.Client(
     auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
@@ -49,7 +50,7 @@ class SubscriptionViewSet(viewsets.ViewSet):
 
         if existing and existing.status == SubscriptionStatus.PAID:
             return Response(
-                {"error": "An active subscription already exists for this tenant."},
+                {"errors": {"detail": "An active subscription already exists for this tenant."}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -62,6 +63,8 @@ class SubscriptionViewSet(viewsets.ViewSet):
                 "payment_capture": 1,
             }
         )
+
+        logger.info(f"Razorpay order created: {order['id']} for tenant: {tenant.id}")
 
         if existing:
             subscription = existing
@@ -124,7 +127,7 @@ class VerifyPaymentView(APIView):
             )
         except Exception:
             return Response(
-                {"error": "Signature verification failed"},
+                {"errors": {"detail": "Signature verification failed"}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -230,9 +233,7 @@ class RazorpayWebhookView(APIView):
             return Response(status=200)
 
         except Exception as e:
-            print(f"Webhook error: {e}")
-
-            traceback.print_exc()
+            logger.error(f"Webhook error: {e}", exc_info=True)
             return Response(status=200)
 
 

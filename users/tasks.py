@@ -1,3 +1,4 @@
+import logging
 import uuid
 import secrets
 from django.core.cache import cache
@@ -9,6 +10,8 @@ from django.utils import timezone
 from datetime import timedelta
 from .utils import set_reset_token, hash_otp
 from .models import User
+
+logger = logging.getLogger(__name__)
 
 
 @shared_task
@@ -32,6 +35,7 @@ def send_verification_email(to_email):
         html_message=html_content,
         fail_silently=False,
     )
+    logger.info(f"Verification email sent to: {to_email}")
 
     return "OTP sent"
 
@@ -45,6 +49,7 @@ def hard_delete_user(self, user_id):
 
     if not user.is_active and user.deleted_at:
         user.delete()
+        logger.info(f"User {user_id} hard deleted after retention period")
         return f"User {user_id} hard deleted"
 
     return f"User {user_id} was restored; skipping hard delete"
@@ -137,5 +142,6 @@ def send_login_otp_email(to_email):
         html_message=html_content,
         fail_silently=False,
     )
+    logger.info(f"Login OTP email sent to: {to_email}")
 
     return "Login OTP sent"

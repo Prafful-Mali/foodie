@@ -90,7 +90,9 @@ class TenantViewSet(viewsets.ViewSet):
         if active_users_count > 0:
             return Response(
                 {
-                    "error": f"Cannot delete tenant because it has {active_users_count} active user(s). Please remove or delete users first."
+                    "errors": {
+                        "detail": f"Cannot delete tenant because it has {active_users_count} active user(s). Please remove or delete users first."
+                    }
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )

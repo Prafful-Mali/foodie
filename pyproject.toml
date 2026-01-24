@@ -12,6 +12,7 @@ dependencies = [
     "djangorestframework-simplejwt>=5.5.1",
     "psycopg[binary]>=3.3.2",
     "python-dotenv>=1.2.1",
+    "python-json-logger>=4.0.0",
     "razorpay>=2.0.0",
     "pillow>=11.1.0",
 ]

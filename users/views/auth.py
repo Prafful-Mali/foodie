@@ -1,3 +1,4 @@
+import logging
 from django.shortcuts import get_object_or_404, render
 from django.core.cache import cache
 from rest_framework.views import APIView
@@ -25,6 +26,7 @@ from ..tasks import (
 )
 from ..utils import get_user_id_from_token, delete_reset_token, hash_otp
 
+logger = logging.getLogger(__name__)
 
 class RegisterAPIView(APIView):
     def post(self, request, tenant_id=None):
@@ -40,11 +42,13 @@ class RegisterAPIView(APIView):
 
         if not cache.add(key, True, timeout=300):
             return Response(
-                {"error": "Please wait before requesting OTP again"},
+                {"errors": {"detail": "Please wait before requesting OTP again"}},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
         send_verification_email.delay(user.email)
+
+        logger.info(f"User registered: {user.email}, tenant: {user.tenant_id}")
 
         return Response(
             {"message": "Registration successful. OTP sent to email."},
@@ -64,13 +68,13 @@ class VerifyOTPAPIView(APIView):
         saved_otp = cache.get(f"otp:{email}")
         if not saved_otp:
             return Response(
-                {"error": "OTP expired or invalid"},
+                {"errors": {"detail": "OTP expired or invalid"}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         if str(saved_otp) != hash_otp(str(user_otp)):
             return Response(
-                {"error": "Invalid OTP"},
+                {"errors": {"detail": "Invalid OTP"}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -81,6 +85,8 @@ class VerifyOTPAPIView(APIView):
 
             cache.delete(f"otp:{email}")
 
+            logger.info(f"Email verified for user: {email}")
+
             return Response(
                 {
                     "message": "Email verified successfully",
@@ -89,7 +95,7 @@ class VerifyOTPAPIView(APIView):
             )
         except User.DoesNotExist:
             return Response(
-                {"error": "User not found"},
+                {"errors": {"detail": "User not found"}},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -107,14 +113,14 @@ class ResendOTPAPIView(APIView):
 
             if user.is_email_verified:
                 return Response(
-                    {"error": "Email already verified"},
+                    {"errors": {"detail": "Email already verified"}},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
             key = f"email:{user.email}"
             if not cache.add(key, True, timeout=300):
                 return Response(
-                    {"error": "Please wait 5 minutes before requesting again"},
+                    {"errors": {"detail": "Please wait 5 minutes before requesting again"}},
                     status=status.HTTP_429_TOO_MANY_REQUESTS,
                 )
 
@@ -127,7 +133,7 @@ class ResendOTPAPIView(APIView):
 
         except User.DoesNotExist:
             return Response(
-                {"error": "User not found"},
+                {"errors": {"detail": "User not found"}},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -195,7 +201,7 @@ class LogoutAPIView(APIView):
 
             if not refresh_token:
                 return Response(
-                    {"error": "Refresh token is required"},
+                    {"errors": {"detail": "Refresh token is required"}},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             token = RefreshToken(refresh_token)
@@ -207,7 +213,7 @@ class LogoutAPIView(APIView):
             )
         except Exception:
             return Response(
-                {"error": "Invalid or expired token"},
+                {"errors": {"detail": "Invalid or expired token"}},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
@@ -242,6 +248,8 @@ class ForgotPasswordAPIView(APIView):
 
         send_reset_password_email.delay(email, base_url)
 
+        logger.info(f"Password reset email requested for: {email}")
+
         return Response(
             {"message": "If the email exists, a reset link was sent."},
             status=status.HTTP_200_OK,
@@ -254,7 +262,7 @@ class ResetPasswordPage(APIView):
         user_id = get_user_id_from_token(token)
         if not user_id:
             return Response(
-                {"error": "Invalid or expired token"},
+                {"errors": {"detail": "Invalid or expired token"}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -264,7 +272,7 @@ class ResetPasswordPage(APIView):
         user_id = get_user_id_from_token(token)
         if not user_id:
             return Response(
-                {"error": "Invalid or expired token"},
+                {"errors": {"detail": "Invalid or expired token"}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -289,7 +297,7 @@ class SetupPasswordPage(APIView):
         user_id = get_user_id_from_token(token)
         if not user_id:
             return Response(
-                {"error": "Invalid or expired token"},
+                {"errors": {"detail": "Invalid or expired token"}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -299,7 +307,7 @@ class SetupPasswordPage(APIView):
         user_id = get_user_id_from_token(token)
         if not user_id:
             return Response(
-                {"error": "Invalid or expired token"},
+                {"errors": {"detail": "Invalid or expired token"}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
