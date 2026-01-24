@@ -49,7 +49,7 @@ class SubscriptionViewSet(viewsets.ViewSet):
 
         if existing and existing.status == SubscriptionStatus.PAID:
             return Response(
-                {"error": "An active subscription already exists for this tenant."},
+                {"errors": {"detail": "An active subscription already exists for this tenant."}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -124,7 +124,7 @@ class VerifyPaymentView(APIView):
             )
         except Exception:
             return Response(
-                {"error": "Signature verification failed"},
+                {"errors": {"detail": "Signature verification failed"}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

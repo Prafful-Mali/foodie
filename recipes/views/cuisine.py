@@ -86,7 +86,9 @@ class CuisineViewSet(viewsets.ViewSet):
         if is_used:
             return Response(
                 {
-                    "error": "Cannot delete cuisine because it is used in one or more active recipes."
+                    "errors": {
+                        "detail": "Cannot delete cuisine because it is used in one or more active recipes."
+                    }
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )

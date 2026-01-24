@@ -40,7 +40,7 @@ class RegisterAPIView(APIView):
 
         if not cache.add(key, True, timeout=300):
             return Response(
-                {"error": "Please wait before requesting OTP again"},
+                {"errors": {"detail": "Please wait before requesting OTP again"}},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
@@ -64,13 +64,13 @@ class VerifyOTPAPIView(APIView):
         saved_otp = cache.get(f"otp:{email}")
         if not saved_otp:
             return Response(
-                {"error": "OTP expired or invalid"},
+                {"errors": {"detail": "OTP expired or invalid"}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         if str(saved_otp) != hash_otp(str(user_otp)):
             return Response(
-                {"error": "Invalid OTP"},
+                {"errors": {"detail": "Invalid OTP"}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -89,7 +89,7 @@ class VerifyOTPAPIView(APIView):
             )
         except User.DoesNotExist:
             return Response(
-                {"error": "User not found"},
+                {"errors": {"detail": "User not found"}},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -107,14 +107,14 @@ class ResendOTPAPIView(APIView):
 
             if user.is_email_verified:
                 return Response(
-                    {"error": "Email already verified"},
+                    {"errors": {"detail": "Email already verified"}},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
             key = f"email:{user.email}"
             if not cache.add(key, True, timeout=300):
                 return Response(
-                    {"error": "Please wait 5 minutes before requesting again"},
+                    {"errors": {"detail": "Please wait 5 minutes before requesting again"}},
                     status=status.HTTP_429_TOO_MANY_REQUESTS,
                 )
 
@@ -127,7 +127,7 @@ class ResendOTPAPIView(APIView):
 
         except User.DoesNotExist:
             return Response(
-                {"error": "User not found"},
+                {"errors": {"detail": "User not found"}},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -195,7 +195,7 @@ class LogoutAPIView(APIView):
 
             if not refresh_token:
                 return Response(
-                    {"error": "Refresh token is required"},
+                    {"errors": {"detail": "Refresh token is required"}},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             token = RefreshToken(refresh_token)
@@ -207,7 +207,7 @@ class LogoutAPIView(APIView):
             )
         except Exception:
             return Response(
-                {"error": "Invalid or expired token"},
+                {"errors": {"detail": "Invalid or expired token"}},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
@@ -254,7 +254,7 @@ class ResetPasswordPage(APIView):
         user_id = get_user_id_from_token(token)
         if not user_id:
             return Response(
-                {"error": "Invalid or expired token"},
+                {"errors": {"detail": "Invalid or expired token"}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -264,7 +264,7 @@ class ResetPasswordPage(APIView):
         user_id = get_user_id_from_token(token)
         if not user_id:
             return Response(
-                {"error": "Invalid or expired token"},
+                {"errors": {"detail": "Invalid or expired token"}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -289,7 +289,7 @@ class SetupPasswordPage(APIView):
         user_id = get_user_id_from_token(token)
         if not user_id:
             return Response(
-                {"error": "Invalid or expired token"},
+                {"errors": {"detail": "Invalid or expired token"}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -299,7 +299,7 @@ class SetupPasswordPage(APIView):
         user_id = get_user_id_from_token(token)
         if not user_id:
             return Response(
-                {"error": "Invalid or expired token"},
+                {"errors": {"detail": "Invalid or expired token"}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

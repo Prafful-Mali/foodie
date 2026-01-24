@@ -92,7 +92,7 @@ class UserViewSet(viewsets.ViewSet):
             if str(is_active).lower() == "true":
                 if user.is_active:
                     return Response(
-                        {"detail": "User is already active."},
+                        {"errors": {"detail": "User is already active."}},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
                 user.is_active = True
@@ -117,7 +117,7 @@ class UserViewSet(viewsets.ViewSet):
 
         if not user.is_active:
             return Response(
-                {"error": "User is already deleted."},
+                {"errors": {"detail": "User is already deleted."}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

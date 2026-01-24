@@ -97,7 +97,7 @@ def custom_api_exception_handler(exc, context):
     # Handle Django ValidationError (model/form level)
     if isinstance(exc, DjangoValidationError):
         return Response(
-            exc.message_dict if hasattr(exc, "message_dict") else exc.messages,
+            {"errors": exc.message_dict if hasattr(exc, "message_dict") else exc.messages},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -106,16 +106,21 @@ def custom_api_exception_handler(exc, context):
     # Unhandled exception → 500
     if response is None:
         return Response(
-            {"detail": str(exc)},
+            {"errors": {"detail": str(exc)}},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
-    # For DRF exceptions, just return DRF's data directly
+    # Wrap standard DRF errors in an "errors" key
+    if isinstance(response.data, dict):
+        response.data = {"errors": response.data}
+    elif isinstance(response.data, list):
+        response.data = {"errors": {"detail": response.data}}
+
     return response
 
 
 def custom_404_handler(request, exception):
     return JsonResponse(
-        {"detail": "The requested resource does not exist."},
+        {"errors": {"detail": "The requested resource does not exist."}},
         status=404,
     )

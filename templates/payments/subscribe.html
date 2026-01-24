@@ -40,14 +40,14 @@
                 let msg = "Session expired. Please log in again.";
                 try {
                     const err = await res.json();
-                    msg = err.detail || msg;
+                    msg = (err.errors && err.errors.detail) || err.detail || msg;
                 } catch (e) {}
                 alert(msg);
                 return;
             }
             if (!res.ok) {
                 const err = await res.json();
-                alert(err.error || "Failed to create order");
+                alert((err.errors && err.errors.detail) || err.error || "Failed to create order");
                 return;
             }
 
@@ -76,7 +76,7 @@
 
                     if (!verifyRes.ok) {
                         const err = await verifyRes.json();
-                        alert(err.detail || "Verification failed");
+                        alert((err.errors && err.errors.detail) || err.detail || "Verification failed");
                         return;
                     }
 
