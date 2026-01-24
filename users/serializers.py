@@ -317,14 +317,22 @@ class UserSerializer(serializers.ModelSerializer):
             "id",
             "username",
             "email",
-            "first_name",
-            "last_name",
             "role",
             "tenant_id",
             "tenant_name",
             "created_at",
             "updated_at",
         ]
+
+    def validate_first_name(self, value):
+        if value and not value.isalpha():
+            raise serializers.ValidationError("First name must contain only letters.")
+        return value
+
+    def validate_last_name(self, value):
+        if value and not value.isalpha():
+            raise serializers.ValidationError("Last name must contain only letters.")
+        return value
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

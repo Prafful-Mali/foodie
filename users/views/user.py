@@ -84,23 +84,31 @@ class UserViewSet(viewsets.ViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def partial_update(self, request, pk=None):
-        user = get_object_or_404(User, pk=pk)
+        queryset = self.get_queryset(request)
+        user = get_object_or_404(queryset, pk=pk)
 
-        is_active = request.data.get("is_active", None)
-        if str(is_active).lower() not in ["true"]:
-            raise ValidationError({"detail": "To restore a user, set is_active=true."})
+        is_active = request.data.get("is_active")
+        if is_active is not None:
+            if str(is_active).lower() == "true":
+                if user.is_active:
+                    return Response(
+                        {"detail": "User is already active."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                user.is_active = True
+                user.deleted_at = None
+                user.save()
+            else:
+                raise ValidationError(
+                    {"detail": "To restore a user, set is_active=true."}
+                )
 
-        if user.is_active:
-            return Response(
-                {"detail": "User is already active."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        serializer = UserSerializer(
+            user, data=request.data, partial=True, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
 
-        user.is_active = True
-        user.deleted_at = None
-        user.save()
-
-        serializer = UserSerializer(user, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def destroy(self, request, pk=None):
