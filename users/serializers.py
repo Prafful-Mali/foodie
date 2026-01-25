@@ -445,7 +445,6 @@ class CreateUserSerializer(serializers.Serializer):
                 {"confirm_password": "Passwords do not match."}
             )
 
-
         tenant_id = attrs.get("tenant_id")
 
         if request.user.is_superadmin:

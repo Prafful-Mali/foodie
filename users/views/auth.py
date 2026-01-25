@@ -28,6 +28,7 @@ from ..utils import get_user_id_from_token, delete_reset_token, hash_otp
 
 logger = logging.getLogger(__name__)
 
+
 class RegisterAPIView(APIView):
     def post(self, request, tenant_id=None):
         data = request.data.copy()
@@ -120,7 +121,11 @@ class ResendOTPAPIView(APIView):
             key = f"email:{user.email}"
             if not cache.add(key, True, timeout=300):
                 return Response(
-                    {"errors": {"detail": "Please wait 5 minutes before requesting again"}},
+                    {
+                        "errors": {
+                            "detail": "Please wait 5 minutes before requesting again"
+                        }
+                    },
                     status=status.HTTP_429_TOO_MANY_REQUESTS,
                 )
 
