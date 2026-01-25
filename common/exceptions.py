@@ -1,91 +1,3 @@
-# from rest_framework.views import exception_handler
-# from rest_framework.response import Response
-# from rest_framework import status
-# from rest_framework.exceptions import (
-#     ValidationError,
-#     AuthenticationFailed,
-#     PermissionDenied,
-#     MethodNotAllowed,
-#     NotFound,
-# )
-# from django.http import JsonResponse
-
-
-# def custom_api_exception_handler(exc, context):
-#     response = exception_handler(exc, context)
-#     if response is None:
-#         return Response(
-#             {
-#                 "status": "error",
-#                 "message": "Internal server error",
-#                 "errors": {
-#                     "detail": str(exc),
-#                 },
-#             },
-#             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#         )
-#     if isinstance(exc, ValidationError):
-#         message = "Validation failed"
-#     elif isinstance(exc, AuthenticationFailed):
-#         message = "Authentication failed"
-#     elif isinstance(exc, PermissionDenied):
-#         message = "Permission denied"
-#     elif isinstance(exc, MethodNotAllowed):
-#         message = "Method not allowed"
-#     elif isinstance(exc, NotFound):
-#         message = "Resource not found"
-#     else:
-#         message = str(exc)
-
-#     custom_response_data = {
-#         "status": "error",
-#         "message": message,
-#         "errors": response.data,
-#     }
-#     response.data = custom_response_data
-#     return response
-
-
-# # from django.core.exceptions import ValidationError as DjangoValidationError
-# # from rest_framework.exceptions import ValidationError as DRFValidationError
-
-# # def custom_api_exception_handler(exc, context):
-# #     response = exception_handler(exc, context)
-
-# #     if isinstance(exc, DjangoValidationError):
-# #         return Response(
-# #             {
-# #                 "status": "error",
-# #                 "message": "Invalid request parameter",
-# #                 "errors": exc.message_dict if hasattr(exc, "message_dict") else exc.messages,
-# #             },
-# #             status=status.HTTP_400_BAD_REQUEST,
-# #         )
-
-# #     if response is None:
-# #         return Response(
-# #             {
-# #                 "status": "error",
-# #                 "message": "Internal server error",
-# #                 "errors": {"detail": str(exc)},
-# #             },
-# #             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-# #         )
-
-# #     return response
-
-
-# def custom_404_handler(request, exception):
-#     return JsonResponse(
-#         {
-#             "status": "error",
-#             "message": "Resource not found",
-#             "errors": {"detail": "The requested resources does not exist."},
-#         },
-#         status=404,
-#     )
-
-
 from rest_framework.views import exception_handler
 from rest_framework.response import Response
 from rest_framework import status
@@ -94,23 +6,24 @@ from django.http import JsonResponse
 
 
 def custom_api_exception_handler(exc, context):
-    # Handle Django ValidationError (model/form level)
     if isinstance(exc, DjangoValidationError):
         return Response(
-            {"errors": exc.message_dict if hasattr(exc, "message_dict") else exc.messages},
+            {
+                "errors": (
+                    exc.message_dict if hasattr(exc, "message_dict") else exc.messages
+                )
+            },
             status=status.HTTP_400_BAD_REQUEST,
         )
 
     response = exception_handler(exc, context)
 
-    # Unhandled exception → 500
     if response is None:
         return Response(
             {"errors": {"detail": str(exc)}},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
-    # Wrap standard DRF errors in an "errors" key
     if isinstance(response.data, dict):
         response.data = {"errors": response.data}
     elif isinstance(response.data, list):

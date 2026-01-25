@@ -22,6 +22,7 @@ from common.enums import UserRole
 
 logger = logging.getLogger(__name__)
 
+
 class UserViewSet(viewsets.ViewSet):
     def get_permissions(self):
         if self.action in ["list", "partial_update", "create"]:
@@ -67,7 +68,9 @@ class UserViewSet(viewsets.ViewSet):
         base_url = request.build_absolute_uri("/")[:-1]
         send_setup_password_email.delay(user.email, base_url)
 
-        logger.info(f"Admin created user: {user.email}, tenant: {user.tenant_id}, by: {request.user.id}")
+        logger.info(
+            f"Admin created user: {user.email}, tenant: {user.tenant_id}, by: {request.user.id}"
+        )
 
         return Response(
             {
@@ -139,7 +142,9 @@ class UserViewSet(viewsets.ViewSet):
             eta = now + timedelta(days=7)
 
         user.save()
-        logger.info(f"User deactivated: {user.id} by: {request.user.id}, scheduled for hard delete in {eta - now}")
+        logger.info(
+            f"User deactivated: {user.id} by: {request.user.id}, scheduled for hard delete in {eta - now}"
+        )
 
         hard_delete_user.apply_async(
             args=[str(user.id)],

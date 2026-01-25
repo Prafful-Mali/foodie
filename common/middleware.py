@@ -32,15 +32,12 @@ class TenantMiddleware:
         return self.get_response(request)
 
 
-
-
 class RequestLoggingMiddleware:
     async_capable = True
 
     def __init__(self, get_response):
         self.get_response = get_response
         self.logger = logging.getLogger("django.request")
-
 
     def __call__(self, request):
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
@@ -67,14 +64,13 @@ class RequestLoggingMiddleware:
 
         return response
 
-
     def log_request(self, request, response, duration):
         user = getattr(request, "user", None)
         tenant = getattr(request, "tenant", None)
-        
+
         user_id = str(user.id) if user and user.is_authenticated else "anonymous"
         tenant_id = str(tenant.id) if tenant else "none"
-        
+
         log_data = {
             "method": request.method,
             "path": request.path,
@@ -103,4 +99,3 @@ class RequestLoggingMiddleware:
         else:
             ip = request.META.get("REMOTE_ADDR")
         return ip
-

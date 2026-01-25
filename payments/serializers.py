@@ -3,16 +3,18 @@ from .models import Subscription, Payment
 
 
 class SubscriptionSerializer(serializers.ModelSerializer):
+    created_by_email = serializers.EmailField(source="created_by.email", read_only=True)
+
     class Meta:
         model = Subscription
         fields = [
             "id",
-            "razorpay_order_id",
             "amount",
             "status",
             "is_active",
             "activated_at",
             "created_at",
+            "created_by_email",
         ]
         read_only_fields = fields
 
@@ -24,7 +26,22 @@ class VerifyPaymentSerializer(serializers.Serializer):
 
 
 class PaymentSerializer(serializers.ModelSerializer):
+    user_email = serializers.EmailField(source="user.email", read_only=True)
+
     class Meta:
         model = Payment
-        fields = "__all__"
+        fields = [
+            "id",
+            "order_id",
+            "payment_id",
+            "amount",
+            "currency",
+            "status",
+            "method",
+            "email",
+            "contact",
+            "captured",
+            "created_at",
+            "user_email",
+        ]
         read_only_fields = fields

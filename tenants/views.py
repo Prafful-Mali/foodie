@@ -7,11 +7,11 @@ from rest_framework.permissions import IsAuthenticated
 from .models import Tenant
 from .permissions import IsSuperAdmin
 from .serializers import TenantSerializer, TenantListSerializer
+from .tasks import soft_delete_tenant_related_data, restore_tenant_related_data
 from common.pagination import DefaultPagination
 
 
 class TenantViewSet(viewsets.ViewSet):
-
     permission_classes = [IsAuthenticated, IsSuperAdmin]
 
     def get_queryset(self):
@@ -40,7 +40,6 @@ class TenantViewSet(viewsets.ViewSet):
 
         paginator = DefaultPagination()
         paginated_qs = paginator.paginate_queryset(tenants, request)
-
         serializer = TenantListSerializer(paginated_qs, many=True)
         return paginator.get_paginated_response(serializer.data)
 
@@ -51,19 +50,15 @@ class TenantViewSet(viewsets.ViewSet):
 
     def create(self, request):
         name = request.data.get("name")
-
         if name:
             old_tenant = Tenant.objects.filter(
                 name=name.strip(), is_active=False
             ).first()
-
             if old_tenant:
                 old_tenant.is_active = True
                 old_tenant.deleted_at = None
-
                 if "is_premium" in request.data:
                     old_tenant.is_premium = request.data["is_premium"]
-
                 old_tenant.save()
                 serializer = TenantSerializer(old_tenant)
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -74,31 +69,46 @@ class TenantViewSet(viewsets.ViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
-        tenant = get_object_or_404(Tenant, pk=pk, is_active=True)
+        tenant = get_object_or_404(Tenant, pk=pk)
+
+        is_restoring = not tenant.is_active and request.data.get("is_active") is True
+
+        deleted_at_timestamp = None
+        if is_restoring and tenant.deleted_at:
+            deleted_at_timestamp = tenant.deleted_at.isoformat()
 
         serializer = TenantSerializer(tenant, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        if is_restoring and deleted_at_timestamp:
+            restore_tenant_related_data.delay(str(tenant.id), deleted_at_timestamp)
+
+        return Response(
+            {
+                "data": serializer.data,
+                "message": (
+                    "Tenant updated successfully. Related data is being restored in the background."
+                    if is_restoring
+                    else "Tenant updated successfully."
+                ),
+            },
+            status=status.HTTP_200_OK,
+        )
 
     def destroy(self, request, pk=None):
         tenant = get_object_or_404(Tenant, pk=pk, is_active=True)
 
-        active_users_count = tenant.users.filter(is_active=True).count()
-
-        if active_users_count > 0:
-            return Response(
-                {
-                    "errors": {
-                        "detail": f"Cannot delete tenant because it has {active_users_count} active user(s). Please remove or delete users first."
-                    }
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+        deleted_at = timezone.now()
         tenant.is_active = False
-        tenant.deleted_at = timezone.now()
+        tenant.deleted_at = deleted_at
         tenant.save()
 
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        soft_delete_tenant_related_data.delay(str(tenant.id), deleted_at.isoformat())
+
+        return Response(
+            {
+                "message": "Tenant soft deleted successfully. Related data is being deleted in the background."
+            },
+            status=status.HTTP_200_OK,
+        )

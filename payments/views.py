@@ -1,21 +1,18 @@
 import logging
 import razorpay
-import traceback
-from django.shortcuts import render
+import uuid
 from django.conf import settings
 from django.db import transaction
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.decorators import api_view, permission_classes
 from common.pagination import DefaultPagination
 from common.constants import LIFETIME_AMOUNT_PAISE
-from .models import Subscription, Payment, WebhookEvent
 from common.enums import SubscriptionStatus, PaymentStatus
-from .serializers import (
-    SubscriptionSerializer,
-    VerifyPaymentSerializer,
-)
+from .models import Subscription, Payment, WebhookEvent
+from .serializers import SubscriptionSerializer, VerifyPaymentSerializer
 from .permissions import IsTenantAdmin
 
 logger = logging.getLogger(__name__)
@@ -26,7 +23,6 @@ razorpay_client = razorpay.Client(
 
 
 class SubscriptionViewSet(viewsets.ViewSet):
-
     def get_permissions(self):
         return [IsTenantAdmin()]
 
@@ -41,20 +37,26 @@ class SubscriptionViewSet(viewsets.ViewSet):
 
     def create(self, request):
         tenant = request.tenant
+        user = request.user
 
-        # Block only if already PAID
-        existing = Subscription.objects.filter(
-            tenant=tenant,
-            is_active=True,
+        active_subscription = Subscription.objects.filter(
+            tenant=tenant, status=SubscriptionStatus.PAID, is_active=True
         ).first()
 
-        if existing and existing.status == SubscriptionStatus.PAID:
+        if active_subscription:
             return Response(
-                {"errors": {"detail": "An active subscription already exists for this tenant."}},
+                {"errors": {"detail": "An active subscription already exists."}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         amount = LIFETIME_AMOUNT_PAISE
+
+        subscription = Subscription.objects.create(
+            tenant=tenant,
+            created_by=user,
+            amount=amount,
+            status=SubscriptionStatus.PENDING,
+        )
 
         order = razorpay_client.order.create(
             {
@@ -64,37 +66,14 @@ class SubscriptionViewSet(viewsets.ViewSet):
             }
         )
 
-        logger.info(f"Razorpay order created: {order['id']} for tenant: {tenant.id}")
-
-        if existing:
-            subscription = existing
-            subscription.razorpay_order_id = order["id"]
-            subscription.amount = amount
-            subscription.status = SubscriptionStatus.PENDING
-            subscription.activated_at = None
-            subscription.save()
-
-            payment = subscription.payment
-            payment.order_id = order["id"]
-            payment.amount = amount
-            payment.status = PaymentStatus.CREATED
-            payment.payment_id = None
-            payment.captured = False
-            payment.save()
-        else:
-            subscription = Subscription.objects.create(
-                tenant=tenant,
-                razorpay_order_id=order["id"],
-                amount=amount,
-                status=SubscriptionStatus.PENDING,
-            )
-
-            Payment.objects.create(
-                subscription=subscription,
-                order_id=order["id"],
-                amount=amount,
-                status=PaymentStatus.CREATED,
-            )
+        Payment.objects.create(
+            tenant=tenant,
+            subscription=subscription,
+            user=user,
+            order_id=order["id"],
+            amount=amount,
+            status=PaymentStatus.CREATED,
+        )
 
         return Response(
             {
@@ -110,9 +89,6 @@ class VerifyPaymentView(APIView):
     permission_classes = [IsTenantAdmin]
 
     def post(self, request):
-        """
-        Verify Razorpay signature after frontend success callback.
-        """
         serializer = VerifyPaymentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -131,19 +107,19 @@ class VerifyPaymentView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        subscription = get_object_or_404(
-            Subscription,
-            razorpay_order_id=data["razorpay_order_id"],
+        payment = get_object_or_404(
+            Payment,
+            order_id=data["razorpay_order_id"],
             tenant=request.tenant,
         )
 
         with transaction.atomic():
-            payment = subscription.payment
             payment.payment_id = data["razorpay_payment_id"]
             payment.status = PaymentStatus.CAPTURED
             payment.captured = True
             payment.save()
 
+            subscription = payment.subscription
             subscription.status = SubscriptionStatus.PAID
             subscription.activated_at = subscription.activated_at or payment.created_at
             subscription.save()
@@ -156,17 +132,14 @@ class VerifyPaymentView(APIView):
 
 
 class RazorpayWebhookView(APIView):
-
     def post(self, request):
         try:
             payload = request.data
             event_type = payload.get("event")
-            created_at = payload.get("created_at")
-            account_id = payload.get("account_id")
-
             event_id = payload.get("id")
+
             if not event_id:
-                event_id = f"{account_id}:{event_type}:{created_at}"
+                event_id = f"{event_type}-{uuid.uuid4()}"
 
             payment_entity = (
                 payload.get("payload", {}).get("payment", {}).get("entity", {})
@@ -175,18 +148,16 @@ class RazorpayWebhookView(APIView):
             payment_id = payment_entity.get("id")
 
             if not order_id:
-                # Nothing we can map this event to
                 return Response(status=200)
 
             payment = Payment.objects.filter(order_id=order_id).first()
             if not payment:
-                # Unknown order, ignore safely
                 return Response(status=200)
 
-            # Idempotent storage of webhook
             webhook_event, created = WebhookEvent.objects.get_or_create(
                 event_id=event_id,
                 defaults={
+                    "tenant": payment.tenant,
                     "payment": payment,
                     "event_type": event_type,
                     "payload": payload,
@@ -194,7 +165,6 @@ class RazorpayWebhookView(APIView):
             )
 
             if not created:
-                # Duplicate webhook, already processed
                 return Response(status=200)
 
             with transaction.atomic():

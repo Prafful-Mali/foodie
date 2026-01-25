@@ -214,15 +214,14 @@ class RecipeSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if not request or not request.tenant:
             raise serializers.ValidationError("User must belong to a tenant.")
-        
+
         if not request.tenant.is_premium:
             from common.constants import RECIPE_CAP
-            
+
             current_count = Recipe.objects.filter(
-                tenant=request.tenant,
-                is_active=True
+                tenant=request.tenant, is_active=True
             ).count()
-            
+
             if current_count >= RECIPE_CAP:
                 raise serializers.ValidationError(
                     f"You have reached the maximum limit of {RECIPE_CAP} recipes. Please upgrade to premium to add more."

@@ -21,10 +21,12 @@ class TenantSerializer(serializers.ModelSerializer):
         if not value or not value.strip():
             raise serializers.ValidationError("Tenant name cannot be empty.")
         value = re.sub(r"\s+", " ", value.strip())
-        
+
         if not all(x.isalpha() or x.isspace() for x in value):
-             raise serializers.ValidationError("Tenant name must contain only alphabets and spaces.")
-             
+            raise serializers.ValidationError(
+                "Tenant name must contain only alphabets and spaces."
+            )
+
         return value
 
 
