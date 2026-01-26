@@ -1,11 +1,11 @@
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
-from django.db.models import Q
+from django.db.models import Q, Prefetch
 from rest_framework.response import Response
 from rest_framework import viewsets, status
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import IsAuthenticated
-from ..models import Recipe
+from ..models import Recipe, Ingredient
 from ..permissions import IsOwnerOrAdmin, CanViewRecipe, HasTenant
 from ..serializers import (
     RecipeSerializer,
@@ -45,7 +45,24 @@ class RecipeViewSet(viewsets.ViewSet):
         recipes = (
             self.get_queryset(request)
             .select_related("user", "cuisine")
-            .prefetch_related("ingredients")
+            .prefetch_related(
+                Prefetch(
+                    "ingredients",
+                    queryset=Ingredient.objects.only("id", "name")
+                )
+            )
+            .only(
+                "id",
+                "name",
+                "description",
+                "cooking_time",
+                "sharing_status",
+                "picture",
+                "created_at",
+                "user__id",
+                "cuisine__id",
+                "cuisine__name",
+            )
         )
 
         cuisine_ids_param = request.query_params.get("cuisine_id")
