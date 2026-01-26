@@ -7,13 +7,18 @@ from django.shortcuts import get_object_or_404, render
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import action
 from common.pagination import DefaultPagination
 from common.constants import LIFETIME_AMOUNT_PAISE
 from common.enums import SubscriptionStatus, PaymentStatus
 from .models import Subscription, Payment, WebhookEvent
-from .serializers import SubscriptionSerializer, VerifyPaymentSerializer
+from .serializers import (
+    SubscriptionSerializer,
+    VerifyPaymentSerializer,
+    PaymentSerializer,
+)
 from .permissions import IsTenantAdmin
+from .tasks import process_webhook_event
 
 logger = logging.getLogger(__name__)
 
@@ -51,29 +56,30 @@ class SubscriptionViewSet(viewsets.ViewSet):
 
         amount = LIFETIME_AMOUNT_PAISE
 
-        subscription = Subscription.objects.create(
-            tenant=tenant,
-            created_by=user,
-            amount=amount,
-            status=SubscriptionStatus.PENDING,
-        )
+        with transaction.atomic():
+            subscription = Subscription.objects.create(
+                tenant=tenant,
+                created_by=user,
+                amount=amount,
+                status=SubscriptionStatus.PENDING,
+            )
 
-        order = razorpay_client.order.create(
-            {
-                "amount": amount,
-                "currency": "INR",
-                "payment_capture": 1,
-            }
-        )
+            order = razorpay_client.order.create(
+                {
+                    "amount": amount,
+                    "currency": "INR",
+                    "payment_capture": 1,
+                }
+            )
 
-        Payment.objects.create(
-            tenant=tenant,
-            subscription=subscription,
-            user=user,
-            order_id=order["id"],
-            amount=amount,
-            status=PaymentStatus.CREATED,
-        )
+            Payment.objects.create(
+                tenant=tenant,
+                subscription=subscription,
+                user=user,
+                order_id=order["id"],
+                amount=amount,
+                status=PaymentStatus.CREATED,
+            )
 
         return Response(
             {
@@ -83,6 +89,31 @@ class SubscriptionViewSet(viewsets.ViewSet):
             },
             status=status.HTTP_201_CREATED,
         )
+
+    @action(detail=False, methods=["get"], url_path="status")
+    def check_status(self, request):
+        tenant = request.tenant
+
+        subscription = (
+            Subscription.objects.filter(tenant=tenant, is_active=True)
+            .order_by("-created_at")
+            .first()
+        )
+
+        if not subscription:
+            return Response(
+                {"status": "no_subscription"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        return Response(
+            {
+                "status": subscription.status,
+                "is_premium": tenant.is_premium,
+                "activated_at": subscription.activated_at,
+            },
+            status=status.HTTP_200_OK,
+        )
+
 
 
 class VerifyPaymentView(APIView):
@@ -101,7 +132,8 @@ class VerifyPaymentView(APIView):
                     "razorpay_signature": data["razorpay_signature"],
                 }
             )
-        except Exception:
+        except Exception as e:
+            logger.error(f"Signature verification failed: {str(e)}")
             return Response(
                 {"errors": {"detail": "Signature verification failed"}},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -114,25 +146,49 @@ class VerifyPaymentView(APIView):
         )
 
         with transaction.atomic():
-            payment.payment_id = data["razorpay_payment_id"]
-            payment.status = PaymentStatus.CAPTURED
-            payment.captured = True
-            payment.save()
+            if payment.status == PaymentStatus.CREATED:
+                payment.payment_id = data["razorpay_payment_id"]
+                payment.status = PaymentStatus.VERIFIED
+                payment.save(update_fields=["payment_id", "status", "updated_at"])
 
-            subscription = payment.subscription
-            subscription.status = SubscriptionStatus.PAID
-            subscription.activated_at = subscription.activated_at or payment.created_at
-            subscription.save()
-
-            tenant = subscription.tenant
-            tenant.is_premium = True
-            tenant.save(update_fields=["is_premium"])
-
-        return Response({"status": "verified"}, status=status.HTTP_200_OK)
-
+        subscription = payment.subscription
+        
+        return Response(
+            {
+                "status": "verified",
+                "payment_status": payment.status,
+                "subscription_status": subscription.status,
+                "is_premium": subscription.tenant.is_premium,
+                "message": "Signature verified. Awaiting webhook confirmation."
+            },
+            status=status.HTTP_200_OK
+        )
 
 class RazorpayWebhookView(APIView):
     def post(self, request):
+        webhook_signature = request.headers.get("X-Razorpay-Signature")
+        webhook_secret = settings.RAZORPAY_WEBHOOK_SECRET
+
+        if not webhook_signature:
+            logger.error("Webhook received without signature")
+            return Response(
+                {"status": "error", "message": "Missing signature"}, 
+                status=400
+            )
+
+        try:
+            razorpay_client.utility.verify_webhook_signature(
+                body=request.body.decode('utf-8'),
+                signature=webhook_signature,
+                secret=webhook_secret,
+            )
+        except Exception as e:
+            logger.error(f"Webhook signature verification failed: {str(e)}")
+            return Response(
+                {"status": "error", "message": "Invalid signature"}, 
+                status=400
+            )
+
         try:
             payload = request.data
             event_type = payload.get("event")
@@ -145,14 +201,15 @@ class RazorpayWebhookView(APIView):
                 payload.get("payload", {}).get("payment", {}).get("entity", {})
             )
             order_id = payment_entity.get("order_id")
-            payment_id = payment_entity.get("id")
 
             if not order_id:
-                return Response(status=200)
+                logger.warning(f"Webhook {event_id} has no order_id, ignoring")
+                return Response({"status": "ignored"}, status=200)
 
             payment = Payment.objects.filter(order_id=order_id).first()
             if not payment:
-                return Response(status=200)
+                logger.warning(f"Payment not found for order_id {order_id}")
+                return Response({"status": "payment_not_found"}, status=200)
 
             webhook_event, created = WebhookEvent.objects.get_or_create(
                 event_id=event_id,
@@ -161,51 +218,22 @@ class RazorpayWebhookView(APIView):
                     "payment": payment,
                     "event_type": event_type,
                     "payload": payload,
+                    "processed": False,
                 },
             )
 
             if not created:
-                return Response(status=200)
+                logger.info(f"Webhook {event_id} already exists, skipping")
+                return Response({"status": "duplicate"}, status=200)
 
-            with transaction.atomic():
-                if event_type == "payment.captured":
-                    payment.payment_id = payment_id
-                    payment.status = PaymentStatus.CAPTURED
-                    payment.captured = True
-                    payment.method = payment_entity.get("method")
-                    payment.email = payment_entity.get("email")
-                    payment.contact = payment_entity.get("contact")
-                    payment.fee = payment_entity.get("fee")
-                    payment.tax = payment_entity.get("tax")
-                    payment.save()
+            process_webhook_event.delay(str(webhook_event.id))
 
-                    subscription = payment.subscription
-                    subscription.status = SubscriptionStatus.PAID
-                    subscription.activated_at = (
-                        subscription.activated_at or payment.created_at
-                    )
-                    subscription.save()
-
-                    tenant = subscription.tenant
-                    tenant.is_premium = True
-                    tenant.save(update_fields=["is_premium"])
-
-                elif event_type == "payment.failed":
-                    payment.status = PaymentStatus.FAILED
-                    payment.error_code = payment_entity.get("error_code")
-                    payment.error_description = payment_entity.get("error_description")
-                    payment.save()
-
-                    subscription = payment.subscription
-                    subscription.status = SubscriptionStatus.FAILED
-                    subscription.save()
-
-            return Response(status=200)
+            logger.info(f"Webhook {event_id} queued for processing")
+            return Response({"status": "queued"}, status=200)
 
         except Exception as e:
             logger.error(f"Webhook error: {e}", exc_info=True)
-            return Response(status=200)
-
+            return Response({"status": "error"}, status=200)
 
 def subscribe_page(request):
     return render(
