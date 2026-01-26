@@ -14,6 +14,8 @@ from .views import (
     LoginVerifyOTPAPIView,
     LoginResendOTPAPIView,
     SetupPasswordPage,
+    InviteUserAPIView,
+    AcceptInvitePage,
 )
 
 router = DefaultRouter()
@@ -51,6 +53,12 @@ urlpatterns = [
         "setup-password/<str:token>/",
         SetupPasswordPage.as_view(),
         name="setup_password",
+    ),
+    path("invite/user/", InviteUserAPIView.as_view(), name="invite_user"),
+    path(
+        "invite/accept/<str:token>/",
+        AcceptInvitePage.as_view(),
+        name="accept_invite",
     ),
     path("", include(router.urls)),
 ]

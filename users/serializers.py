@@ -6,7 +6,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User
 from common.enums import UserRole
 from tenants.models import Tenant
-from .utils import hash_otp
+from .utils import hash_otp, delete_reset_token
 
 
 class RegisterSerializer(serializers.Serializer):
@@ -507,4 +507,120 @@ class CreateUserSerializer(serializers.Serializer):
             user.set_unusable_password()
 
         user.save()
+        return user
+
+
+class InviteUserSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        value = value.lower()
+        user = User.objects.filter(email=value).first()
+
+        if user and user.is_active:
+            raise serializers.ValidationError("Email already exists.")
+
+        if user and user.deleted_by and user.deleted_by_id != user.id:
+            raise serializers.ValidationError(
+                "This account was deactivated by an administrator."
+            )
+
+        return value
+
+    def create(self, validated_data):
+        request = self.context["request"]
+
+        if not request.user.tenant:
+            raise serializers.ValidationError(
+                {"detail": "Admin must belong to a tenant to invite users."}
+            )
+
+        email = validated_data["email"]
+
+        user = User.objects.create(
+            email=email,
+            tenant=request.user.tenant,
+            role=UserRole.USER,
+            is_active=False,
+            is_email_verified=False,
+        )
+        user.set_unusable_password()
+        user.save()
+
+        return user
+
+
+class AcceptInviteSerializer(serializers.Serializer):
+    username = serializers.CharField(min_length=3, max_length=150)
+    first_name = serializers.CharField(min_length=3, max_length=150)
+    last_name = serializers.CharField(min_length=3, max_length=150)
+    password = serializers.CharField(write_only=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True, min_length=8)
+
+    def validate_username(self, value):
+        user = User.objects.filter(username=value).first()
+
+        if not user:
+            return value
+
+        if not user.is_active and user.deleted_by_id == user.id:
+            return value
+
+        raise serializers.ValidationError("Username already exists.")
+
+    def validate_first_name(self, value):
+        if not value.isalpha():
+            raise serializers.ValidationError("First name must contain only letters.")
+        return value
+
+    def validate_last_name(self, value):
+        if not value.isalpha():
+            raise serializers.ValidationError("Last name must contain only letters.")
+        return value
+
+    def validate_password(self, value):
+        validate_password(value)
+        return value
+
+    def validate(self, data):
+        password = data.get("password")
+        confirm_password = data.get("confirm_password")
+
+        if password != confirm_password:
+            raise serializers.ValidationError(
+                {"confirm_password": "Passwords do not match."}
+            )
+
+        return data
+
+    def create(self, validated_data):
+        user_id = self.context["user_id"]
+        token = self.context["token"]
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            raise serializers.ValidationError({"detail": "User not found"})
+
+        user.username = validated_data["username"]
+        user.first_name = validated_data["first_name"]
+        user.last_name = validated_data["last_name"]
+        user.set_password(validated_data["password"])
+        user.is_active = True
+        user.is_email_verified = True
+        user.deleted_at = None
+        user.deleted_by = None
+
+        user.save(
+            update_fields=[
+                "username",
+                "first_name",
+                "last_name",
+                "password",
+                "is_active",
+                "is_email_verified",
+                "deleted_at",
+                "deleted_by",
+            ]
+        )
+        delete_reset_token(token)
         return user

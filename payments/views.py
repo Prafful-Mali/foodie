@@ -115,7 +115,6 @@ class SubscriptionViewSet(viewsets.ViewSet):
         )
 
 
-
 class VerifyPaymentView(APIView):
     permission_classes = [IsTenantAdmin]
 
@@ -152,17 +151,18 @@ class VerifyPaymentView(APIView):
                 payment.save(update_fields=["payment_id", "status", "updated_at"])
 
         subscription = payment.subscription
-        
+
         return Response(
             {
                 "status": "verified",
                 "payment_status": payment.status,
                 "subscription_status": subscription.status,
                 "is_premium": subscription.tenant.is_premium,
-                "message": "Signature verified. Awaiting webhook confirmation."
+                "message": "Signature verified. Awaiting webhook confirmation.",
             },
-            status=status.HTTP_200_OK
+            status=status.HTTP_200_OK,
         )
+
 
 class RazorpayWebhookView(APIView):
     def post(self, request):
@@ -172,21 +172,19 @@ class RazorpayWebhookView(APIView):
         if not webhook_signature:
             logger.error("Webhook received without signature")
             return Response(
-                {"status": "error", "message": "Missing signature"}, 
-                status=400
+                {"status": "error", "message": "Missing signature"}, status=400
             )
 
         try:
             razorpay_client.utility.verify_webhook_signature(
-                body=request.body.decode('utf-8'),
+                body=request.body.decode("utf-8"),
                 signature=webhook_signature,
                 secret=webhook_secret,
             )
         except Exception as e:
             logger.error(f"Webhook signature verification failed: {str(e)}")
             return Response(
-                {"status": "error", "message": "Invalid signature"}, 
-                status=400
+                {"status": "error", "message": "Invalid signature"}, status=400
             )
 
         try:
@@ -234,6 +232,7 @@ class RazorpayWebhookView(APIView):
         except Exception as e:
             logger.error(f"Webhook error: {e}", exc_info=True)
             return Response({"status": "error"}, status=200)
+
 
 def subscribe_page(request):
     return render(

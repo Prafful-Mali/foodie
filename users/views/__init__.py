@@ -11,5 +11,7 @@ from .auth import (
     ForgotPasswordAPIView,
     ResetPasswordPage,
     SetupPasswordPage,
+    InviteUserAPIView,
+    AcceptInvitePage,
 )
 from .user import UserViewSet
