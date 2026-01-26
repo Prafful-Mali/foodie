@@ -145,3 +145,35 @@ def send_login_otp_email(to_email):
     logger.info(f"Login OTP email sent to: {to_email}")
 
     return "Login OTP sent"
+
+
+@shared_task
+def send_invite_email(to_email, base_url, tenant_name):
+    token = uuid.uuid4().hex
+
+    user = User.objects.get(email=to_email)
+    set_reset_token(token, user.id)
+
+    invite_link = f"{base_url}/api/v1/invite/accept/{token}/"
+
+    context = {
+        "invite_link": invite_link,
+        "tenant_name": tenant_name,
+    }
+
+    html_content = render_to_string("emails/invite_user.html", context)
+    text_content = (
+        f"You've been invited to join {tenant_name}. "
+        f"Accept the invitation using this link:\n{invite_link}"
+    )
+
+    send_mail(
+        subject=f"Invitation to join {tenant_name}",
+        message=text_content,
+        from_email=None,
+        recipient_list=[to_email],
+        html_message=html_content,
+        fail_silently=False,
+    )
+
+    logger.info(f"Invite email sent to: {to_email} for tenant: {tenant_name}")

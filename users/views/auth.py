@@ -1,4 +1,5 @@
 import logging
+import uuid
 from django.shortcuts import get_object_or_404, render
 from django.core.cache import cache
 from rest_framework.views import APIView
@@ -6,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
+from common.enums import UserRole
 from ..serializers import (
     RegisterSerializer,
     LoginSerializer,
@@ -17,14 +19,18 @@ from ..serializers import (
     ResetPasswordSerializer,
     LoginVerifyOTPSerializer,
     LoginResendOTPSerializer,
+    InviteUserSerializer,
+    AcceptInviteSerializer,
 )
 from ..models import User
 from ..tasks import (
     send_verification_email,
     send_reset_password_email,
     send_login_otp_email,
+    send_invite_email,
 )
 from ..utils import get_user_id_from_token, delete_reset_token, hash_otp
+from ..permissions import IsAdmin
 
 logger = logging.getLogger(__name__)
 
@@ -328,5 +334,77 @@ class SetupPasswordPage(APIView):
 
         return Response(
             {"success": True},
+            status=status.HTTP_200_OK,
+        )
+
+
+class InviteUserAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def post(self, request):
+        serializer = InviteUserSerializer(
+            data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+
+        user = serializer.save()
+
+        base_url = request.build_absolute_uri("/")[:-1]
+
+        send_invite_email.delay(user.email, base_url, request.user.tenant.name)
+
+        return Response(
+            {"message": "Invitation sent successfully."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class AcceptInvitePage(APIView):
+
+    def get(self, request, token):
+        user_id = get_user_id_from_token(token)
+        if not user_id:
+            return Response(
+                {"errors": {"detail": "Invalid or expired invitation token"}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            user = User.objects.get(id=user_id)
+            return Response(
+                {
+                    "message": "Valid invitation token",
+                    "email": user.email,
+                    "first_name": user.first_name or "",
+                    "last_name": user.last_name or "",
+                    "tenant_name": user.tenant.name if user.tenant else "",
+                },
+                status=status.HTTP_200_OK,
+            )
+        except User.DoesNotExist:
+            return Response(
+                {"errors": {"detail": "User not found"}},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+    def post(self, request, token):
+        user_id = get_user_id_from_token(token)
+        if not user_id:
+            return Response(
+                {"errors": {"detail": "Invalid or expired invitation token"}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = AcceptInviteSerializer(
+            data=request.data, context={"user_id": user_id, "token": token}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(
+            {
+                "success": True,
+                "message": "Invitation accepted successfully. You can now login.",
+            },
             status=status.HTTP_200_OK,
         )
