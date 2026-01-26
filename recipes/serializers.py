@@ -293,9 +293,14 @@ class MiniIngredientSerializer(serializers.ModelSerializer):
         fields = ["id", "name"]
         read_only_fields = ["id", "name"]
 
+class MiniCuisineSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Cuisine
+        fields = ["id", "name"]
+        read_only_fields = ["id", "name"]
 
 class RecipeListSerializer(serializers.ModelSerializer):
-    cuisine = CuisineSerializer(read_only=True)
+    cuisine = MiniCuisineSerializer(read_only=True)
     user_id = serializers.UUIDField(source="user.id", read_only=True)
     ingredients = MiniIngredientSerializer(many=True, read_only=True)
 
