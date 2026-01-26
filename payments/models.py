@@ -101,11 +101,17 @@ class WebhookEvent(BaseModel):
         Payment,
         on_delete=models.CASCADE,
         related_name="webhook_events",
+        null=True,
+        blank=True,
     )
     event_id = models.CharField(max_length=100)
     event_type = models.CharField(max_length=100)
     payload = models.JSONField()
     is_active = models.BooleanField(default=True, db_default=True)
+
+    processed = models.BooleanField(default=False, db_default=False)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    processing_error = models.TextField(null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at"]
@@ -117,4 +123,4 @@ class WebhookEvent(BaseModel):
         ]
 
     def __str__(self):
-        return self.event_type
+        return f"{self.event_type} - {self.event_id}"

@@ -20,5 +20,7 @@ class SubscriptionStatus(models.TextChoices):
 
 class PaymentStatus(models.TextChoices):
     CREATED = "created", "Created"
-    CAPTURED = "captured", "Captured"
+    AUTHORIZED = "authorized", "Authorized"
+    VERIFIED = "verified", "Verified" 
+    CAPTURED = "captured", "Captured"  
     FAILED = "failed", "Failed"
