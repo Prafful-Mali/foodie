@@ -17,3 +17,4 @@ dump.rdb
 celerybeat-schedule.db
 *.rdb
 app.log
+logs/

@@ -209,10 +209,17 @@ LOGGING = {
             "class": "logging.StreamHandler",
             "formatter": "json",
         },
+        "request_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": BASE_DIR / "logs/requests.log",
+            "maxBytes": 10 * 1024 * 1024,
+            "backupCount": 5,
+            "formatter": "json",
+        },
     },
     "loggers": {
         "django.request": {
-            "handlers": ["console"],
+            "handlers": ["console", "request_file"],
             "level": "INFO",
             "propagate": False,
         },
