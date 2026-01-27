@@ -92,6 +92,10 @@ class RecipeViewSet(viewsets.ViewSet):
         if sharing_status:
             recipes = recipes.filter(sharing_status=sharing_status)
 
+        name = request.query_params.get("name")
+        if name:
+            recipes = recipes.filter(name__icontains=name.strip())
+
         ingredient_ids_param = request.query_params.get("ingredient_id")
         if ingredient_ids_param:
             ingredient_ids = [
