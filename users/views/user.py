@@ -16,7 +16,6 @@ from common.pagination import DefaultPagination
 from ..permissions import IsAdmin, IsOwnerOrAdmin, CanDeleteUser
 from ..models import User
 from ..tasks import (
-    hard_delete_user,
     deactivate_user_resources,
     restore_user_resources,
     send_setup_password_email,
@@ -112,7 +111,11 @@ class UserViewSet(viewsets.ViewSet):
                     user.save()
                     restore_user_resources.delay(
                         str(user.id),
-                        original_deleted_at.isoformat() if original_deleted_at else None,
+                        (
+                            original_deleted_at.isoformat()
+                            if original_deleted_at
+                            else None
+                        ),
                     )
 
                 logger.info(f"User reactivated: {user.id} by: {request.user.id}")
@@ -145,24 +148,13 @@ class UserViewSet(viewsets.ViewSet):
         user.deleted_at = now
         user.deleted_by = request.user
 
-        if request.user.role == UserRole.ADMIN:
-            eta = now + timedelta(days=90)
-        else:
+        if request.user.role != UserRole.ADMIN:
             user.is_email_verified = False
-            eta = now + timedelta(days=7)
 
         with transaction.atomic():
             user.save()
-
-            hard_delete_user.apply_async(
-                args=[str(user.id)],
-                eta=eta,
-            )
-
             deactivate_user_resources.delay(str(user.id), now.isoformat())
 
-        logger.info(
-            f"User deactivated: {user.id} by: {request.user.id}, scheduled for hard delete in {eta - now}"
-        )
+        logger.info(f"User deactivated: {user.id} by: {request.user.id}")
 
         return Response(status=status.HTTP_204_NO_CONTENT)

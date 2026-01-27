@@ -157,7 +157,9 @@ class RazorpayWebhookView(APIView):
 
         except Exception as e:
             logger.error(f"Webhook error: {e}", exc_info=True)
-            return Response({"status": "error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"status": "error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 def subscribe_page(request):

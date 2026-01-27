@@ -1,12 +1,15 @@
 import re
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
-from django.core.cache import cache
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User
 from common.enums import UserRole
 from tenants.models import Tenant
-from .utils import hash_otp, delete_reset_token
+from .utils import (
+    hash_otp,
+    delete_reset_token,
+    get_user_otp,
+)
 
 
 class RegisterSerializer(serializers.Serializer):
@@ -217,8 +220,7 @@ class LoginVerifyOTPSerializer(serializers.Serializer):
                 {"detail": "Please verify your account before login"}
             )
 
-        cache_key = f"login_otp:{email}"
-        cached_otp = cache.get(cache_key)
+        cached_otp = get_user_otp(email, prefix="login_otp")
 
         if not cached_otp:
             raise serializers.ValidationError(
@@ -252,8 +254,7 @@ class LoginResendOTPSerializer(serializers.Serializer):
                 {"detail": "Please verify your account first"}
             )
 
-        cache_key = f"login_otp:{email}"
-        if cache.get(cache_key):
+        if get_user_otp(email, prefix="login_otp"):
             raise serializers.ValidationError(
                 {
                     "detail": "An OTP was already sent. Please check your email before requesting again."
