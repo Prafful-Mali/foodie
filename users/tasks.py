@@ -1,8 +1,6 @@
 import logging
 import uuid
 import secrets
-from django.core.cache import cache
-from django.conf import settings
 from django.template.loader import render_to_string
 from celery import shared_task
 from django.core.mail import send_mail
@@ -10,7 +8,11 @@ from django.utils import timezone
 from django.db.models import F
 from django.core.management import call_command
 from datetime import timedelta
-from .utils import set_reset_token, hash_otp
+from common.constants import (
+    OTP_TIMEOUT,
+    OTP_EXPIRY_MINUTES,
+)
+from .utils import set_reset_token, hash_otp, set_user_otp
 from .models import User
 
 logger = logging.getLogger(__name__)
@@ -19,11 +21,11 @@ logger = logging.getLogger(__name__)
 @shared_task
 def send_verification_email(to_email):
     otp = f"{secrets.randbelow(1000000):06d}"
-    cache.set(f"otp:{to_email}", hash_otp(otp), timeout=300)
+    set_user_otp(to_email, otp, prefix="otp", timeout=OTP_TIMEOUT)
 
     context = {
         "otp": otp,
-        "expires_in": 5,
+        "expires_in": OTP_EXPIRY_MINUTES,
     }
 
     html_content = render_to_string("emails/verification_otp.html", context)
@@ -40,8 +42,6 @@ def send_verification_email(to_email):
     logger.info(f"Verification email sent to: {to_email}")
 
     return "OTP sent"
-
-
 
 
 @shared_task
@@ -116,11 +116,11 @@ def send_login_otp_email(to_email):
 
     otp = f"{secrets.randbelow(1000000):06d}"
 
-    cache.set(f"login_otp:{to_email}", hash_otp(otp), timeout=300)
+    set_user_otp(to_email, otp, prefix="login_otp", timeout=OTP_TIMEOUT)
 
     context = {
         "otp": otp,
-        "expires_in": 5,
+        "expires_in": OTP_EXPIRY_MINUTES,
     }
 
     html_content = render_to_string("emails/login_otp.html", context)
@@ -188,8 +188,6 @@ def restore_user_resources(user_id, deleted_at):
     if not deleted_at:
         return
 
-    # Only restore recipes that were deleted at the exact same time as the user
-    # to avoid restoring recipes the user had manually deleted earlier.
     Recipe.objects.filter(
         user_id=user_id, is_active=False, deleted_at=deleted_at
     ).update(is_active=True, deleted_at=None)

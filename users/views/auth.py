@@ -1,7 +1,5 @@
 import logging
-import uuid
 from django.shortcuts import get_object_or_404, render
-from django.core.cache import cache
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -29,7 +27,14 @@ from ..tasks import (
     send_login_otp_email,
     send_invite_email,
 )
-from ..utils import get_user_id_from_token, delete_reset_token, hash_otp
+from ..utils import (
+    get_user_id_from_token,
+    delete_reset_token,
+    hash_otp,
+    is_otp_rate_limited,
+    get_user_otp,
+    delete_user_otp,
+)
 from ..permissions import IsAdmin
 
 logger = logging.getLogger(__name__)
@@ -45,9 +50,7 @@ class RegisterAPIView(APIView):
         serializer.is_valid(raise_exception=True)
 
         user = serializer.save()
-        key = f"email:{user.email}"
-
-        if not cache.add(key, True, timeout=300):
+        if is_otp_rate_limited(user.email):
             return Response(
                 {"errors": {"detail": "Please wait before requesting OTP again"}},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -72,7 +75,7 @@ class VerifyOTPAPIView(APIView):
         email = serializer.validated_data["email"]
         user_otp = serializer.validated_data["otp"]
 
-        saved_otp = cache.get(f"otp:{email}")
+        saved_otp = get_user_otp(email)
         if not saved_otp:
             return Response(
                 {"errors": {"detail": "OTP expired or invalid"}},
@@ -90,7 +93,7 @@ class VerifyOTPAPIView(APIView):
             user.is_email_verified = True
             user.save(update_fields=["is_email_verified"])
 
-            cache.delete(f"otp:{email}")
+            delete_user_otp(email)
 
             logger.info(f"Email verified for user: {email}")
 
@@ -124,8 +127,7 @@ class ResendOTPAPIView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            key = f"email:{user.email}"
-            if not cache.add(key, True, timeout=300):
+            if is_otp_rate_limited(email):
                 return Response(
                     {
                         "errors": {
@@ -157,6 +159,13 @@ class LoginAPIView(APIView):
         serializer.is_valid(raise_exception=True)
 
         email = serializer.validated_data["email"]
+
+        if is_otp_rate_limited(email, prefix="login_otp"):
+            return Response(
+                {"errors": {"detail": "Please wait before requesting OTP again"}},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
         send_login_otp_email.delay(email)
 
         return Response(
@@ -176,7 +185,7 @@ class LoginVerifyOTPAPIView(APIView):
         email = serializer.validated_data["email"]
         user = serializer.validated_data["user"]
 
-        cache.delete(f"login_otp:{email}")
+        delete_user_otp(email, prefix="login_otp")
 
         refresh = RefreshToken.for_user(user)
 
@@ -195,6 +204,13 @@ class LoginResendOTPAPIView(APIView):
         serializer.is_valid(raise_exception=True)
 
         email = serializer.validated_data["email"]
+
+        if is_otp_rate_limited(email, prefix="login_otp"):
+            return Response(
+                {"errors": {"detail": "Please wait before requesting OTP again"}},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
         send_login_otp_email.delay(email)
 
         return Response(

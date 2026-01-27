@@ -111,7 +111,11 @@ class UserViewSet(viewsets.ViewSet):
                     user.save()
                     restore_user_resources.delay(
                         str(user.id),
-                        original_deleted_at.isoformat() if original_deleted_at else None,
+                        (
+                            original_deleted_at.isoformat()
+                            if original_deleted_at
+                            else None
+                        ),
                     )
 
                 logger.info(f"User reactivated: {user.id} by: {request.user.id}")
