@@ -41,6 +41,8 @@ class PaymentSerializer(serializers.ModelSerializer):
             "email",
             "contact",
             "captured",
+            "verified_at",
+            "captured_at",
             "created_at",
             "user_email",
         ]
