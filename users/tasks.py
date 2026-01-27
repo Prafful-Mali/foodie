@@ -7,6 +7,7 @@ from django.template.loader import render_to_string
 from celery import shared_task
 from django.core.mail import send_mail
 from django.utils import timezone
+from django.core.management import call_command
 from datetime import timedelta
 from .utils import set_reset_token, hash_otp
 from .models import User
@@ -177,3 +178,34 @@ def send_invite_email(to_email, base_url, tenant_name):
     )
 
     logger.info(f"Invite email sent to: {to_email} for tenant: {tenant_name}")
+
+
+@shared_task
+def deactivate_user_resources(user_id, deleted_at):
+    from recipes.models import Recipe
+
+    Recipe.objects.filter(user_id=user_id, is_active=True).update(
+        is_active=False, deleted_at=deleted_at
+    )
+    logger.info(f"All active recipes deactivated for user: {user_id}")
+
+
+@shared_task
+def restore_user_resources(user_id, deleted_at):
+    from recipes.models import Recipe
+
+    if not deleted_at:
+        return
+
+    # Only restore recipes that were deleted at the exact same time as the user
+    # to avoid restoring recipes the user had manually deleted earlier.
+    Recipe.objects.filter(
+        user_id=user_id, is_active=False, deleted_at=deleted_at
+    ).update(is_active=True, deleted_at=None)
+    logger.info(f"Synchronized recipes restored for user: {user_id}")
+
+
+@shared_task
+def flush_expired_tokens():
+    call_command("flushexpiredtokens")
+    logger.info("Expired tokens flushed from blacklist")

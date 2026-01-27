@@ -168,6 +168,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "users.tasks.cleanup_soft_deleted_users",
         "schedule": crontab(hour=3, minute=0),
     },
+    "flush-expired-tokens": {
+        "task": "users.tasks.flush_expired_tokens",
+        "schedule": crontab(hour=0, minute=0),
+    },
 }
 
 # EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
