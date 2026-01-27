@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework import viewsets, status
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import IsAuthenticated
-from ..models import Recipe, Ingredient
+from ..models import Recipe, Ingredient, RecipePicture
 from ..permissions import IsOwnerOrAdmin, CanViewRecipe, HasTenant
 from ..serializers import (
     RecipeSerializer,
@@ -49,6 +49,10 @@ class RecipeViewSet(viewsets.ViewSet):
                 Prefetch(
                     "ingredients",
                     queryset=Ingredient.objects.only("id", "name")
+                ),
+                Prefetch(
+                    "recipe_pictures",
+                    queryset=RecipePicture.objects.filter(is_active=True).only("id", "picture", "order")
                 )
             )
             .only(
@@ -57,7 +61,6 @@ class RecipeViewSet(viewsets.ViewSet):
                 "description",
                 "cooking_time",
                 "sharing_status",
-                "picture",
                 "created_at",
                 "user__id",
                 "cuisine__id",
@@ -99,7 +102,10 @@ class RecipeViewSet(viewsets.ViewSet):
         qs = (
             self.get_queryset(request)
             .select_related("user", "cuisine")
-            .prefetch_related("recipe_ingredients__ingredient")
+            .prefetch_related(
+                "recipe_ingredients__ingredient",
+                "recipe_pictures"
+            )
         )
 
         recipe = get_object_or_404(qs, pk=pk)

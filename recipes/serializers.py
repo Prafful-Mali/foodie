@@ -1,7 +1,7 @@
 import re
 from users.models import User
 from rest_framework import serializers
-from .models import Cuisine, Ingredient, Recipe, RecipeIngredient
+from .models import Cuisine, Ingredient, Recipe, RecipeIngredient, RecipePicture
 from common.enums import UserRole
 
 
@@ -112,6 +112,13 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
         return value
 
 
+class RecipePictureSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RecipePicture
+        fields = ["id", "picture", "order"]
+        read_only_fields = ["id"]
+
+
 class RecipeSerializer(serializers.ModelSerializer):
     user_id = serializers.UUIDField(source="user.id", read_only=True)
     target_user_id = serializers.UUIDField(
@@ -120,6 +127,7 @@ class RecipeSerializer(serializers.ModelSerializer):
     cuisine_id = serializers.UUIDField(required=False, allow_null=True, write_only=True)
     cuisine = CuisineSerializer(read_only=True)
     recipe_ingredients = RecipeIngredientSerializer(many=True, required=False)
+    recipe_pictures = RecipePictureSerializer(many=True, read_only=True)
 
     class Meta:
         model = Recipe
@@ -135,7 +143,7 @@ class RecipeSerializer(serializers.ModelSerializer):
             "cooking_time",
             "sharing_status",
             "recipe_ingredients",
-            "picture",
+            "recipe_pictures",
             "created_at",
             "updated_at",
         ]
@@ -251,6 +259,14 @@ class RecipeSerializer(serializers.ModelSerializer):
                 recipe=recipe, ingredient=ingredient, tenant=tenant, **ingredient_data
             )
 
+        files = request.FILES.getlist("recipe_pictures")
+        for idx, file in enumerate(files):
+            RecipePicture.objects.create(
+                recipe=recipe,
+                tenant=tenant,
+                picture=file,
+                order=idx,
+            )
         return recipe
 
     def update(self, instance, validated_data):
@@ -293,16 +309,19 @@ class MiniIngredientSerializer(serializers.ModelSerializer):
         fields = ["id", "name"]
         read_only_fields = ["id", "name"]
 
+
 class MiniCuisineSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cuisine
         fields = ["id", "name"]
         read_only_fields = ["id", "name"]
 
+
 class RecipeListSerializer(serializers.ModelSerializer):
     cuisine = MiniCuisineSerializer(read_only=True)
     user_id = serializers.UUIDField(source="user.id", read_only=True)
     ingredients = MiniIngredientSerializer(many=True, read_only=True)
+    recipe_pictures = RecipePictureSerializer(many=True, read_only=True)
 
     class Meta:
         model = Recipe
@@ -315,7 +334,7 @@ class RecipeListSerializer(serializers.ModelSerializer):
             "ingredients",
             "cooking_time",
             "sharing_status",
-            "picture",
+            "recipe_pictures", 
             "created_at",
         ]
         read_only_fields = fields

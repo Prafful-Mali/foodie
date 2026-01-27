@@ -82,7 +82,6 @@ class Recipe(BaseModel):
     ingredients = models.ManyToManyField(
         Ingredient, through="RecipeIngredient", related_name="recipes"
     )
-    picture = models.ImageField(upload_to="recipes/", null=True, blank=True)
     is_active = models.BooleanField(default=True, db_default=True)
 
     class Meta:
@@ -92,6 +91,11 @@ class Recipe(BaseModel):
                 fields=["tenant", "name"],
                 name="unique_recipe_name_per_tenant",
             )
+        ]
+        indexes = [
+            models.Index(fields=["name"], name="recipe_name_idx"),
+            models.Index(fields=["sharing_status"], name="recipe_sharing_status_idx"),
+            models.Index(fields=["description"], name="recipe_description_idx"),
         ]
 
     def __str__(self):
@@ -129,3 +133,27 @@ class RecipeIngredient(BaseModel):
 
     def __str__(self):
         return f"{self.recipe.name} - {self.ingredient.name}"
+
+
+class RecipePicture(BaseModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        "tenants.Tenant",
+        on_delete=models.CASCADE,
+        related_name="recipe_pictures",
+    )
+    recipe = models.ForeignKey(
+        Recipe,
+        on_delete=models.CASCADE,
+        related_name="recipe_pictures",
+    )
+    picture = models.ImageField(upload_to="recipes/pictures/")
+    order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True, db_default=True)
+
+    class Meta:
+        ordering = ["order", "-created_at"]
+        
+
+    def __str__(self):
+        return f"{self.recipe.name} - Picture {self.order}"
