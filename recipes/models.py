@@ -153,7 +153,6 @@ class RecipePicture(BaseModel):
 
     class Meta:
         ordering = ["order", "-created_at"]
-        
 
     def __str__(self):
         return f"{self.recipe.name} - Picture {self.order}"

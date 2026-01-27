@@ -18,7 +18,7 @@ from .tasks import process_webhook_task
 logger = logging.getLogger(__name__)
 
 
-class SubscriptionViewSet(viewsets.ViewSet):    
+class SubscriptionViewSet(viewsets.ViewSet):
     def get_permissions(self):
         return [IsTenantAdmin()]
 
@@ -31,13 +31,12 @@ class SubscriptionViewSet(viewsets.ViewSet):
 
     def create(self, request):
         service = PaymentService()
-        
+
         try:
             subscription, payment, order = service.create_subscription(
-                tenant=request.tenant,
-                user=request.user
+                tenant=request.tenant, user=request.user
             )
-            
+
         except ValidationError as e:
             return Response(
                 {"errors": {"detail": str(e)}},
@@ -64,8 +63,7 @@ class SubscriptionViewSet(viewsets.ViewSet):
 
         if not subscription:
             return Response(
-                {"status": "no_subscription"}, 
-                status=status.HTTP_404_NOT_FOUND
+                {"status": "no_subscription"}, status=status.HTTP_404_NOT_FOUND
             )
 
         return Response(
@@ -96,7 +94,7 @@ class VerifyPaymentView(APIView):
         is_valid = service.verify_payment_signature(
             payment=payment,
             payment_id=data["razorpay_payment_id"],
-            signature=data["razorpay_signature"]
+            signature=data["razorpay_signature"],
         )
 
         if not is_valid:
@@ -120,16 +118,22 @@ class VerifyPaymentView(APIView):
 class RazorpayWebhookView(APIView):
     def post(self, request):
         signature = request.headers.get("X-Razorpay-Signature")
-        
+
         if not signature:
             logger.error("Webhook without signature")
-            return Response({"status": "error", "message": "Missing signature"}, status=400)
+            return Response(
+                {"status": "error", "message": "Missing signature"}, status=400
+            )
 
         service = PaymentService()
-        
-        if not service.verify_webhook_signature(request.body.decode("utf-8"), signature):
+
+        if not service.verify_webhook_signature(
+            request.body.decode("utf-8"), signature
+        ):
             logger.error("Invalid webhook signature")
-            return Response({"status": "error", "message": "Invalid signature"}, status=400)
+            return Response(
+                {"status": "error", "message": "Invalid signature"}, status=400
+            )
 
         try:
             payload = request.data
@@ -137,9 +141,7 @@ class RazorpayWebhookView(APIView):
             event_type = payload.get("event")
 
             webhook, created = service.store_webhook(
-                event_id=event_id,
-                event_type=event_type,
-                payload=payload
+                event_id=event_id, event_type=event_type, payload=payload
             )
 
             if not created:
@@ -147,7 +149,7 @@ class RazorpayWebhookView(APIView):
                 return Response({"status": "duplicate"}, status=200)
 
             process_webhook_task.delay(str(webhook.id))
-            
+
             logger.info(f"Webhook {event_id} queued")
             return Response({"status": "queued"}, status=200)
 

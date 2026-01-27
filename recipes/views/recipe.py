@@ -1,4 +1,5 @@
 from django.utils import timezone
+from django.core.cache import cache
 from django.shortcuts import get_object_or_404
 from django.db.models import Q, Prefetch
 from rest_framework.response import Response
@@ -13,6 +14,7 @@ from ..serializers import (
 )
 from common.pagination import DefaultPagination
 from common.enums import UserRole
+from common.constants import RECIPE_CACHE_TIMEOUT
 
 
 class RecipeViewSet(viewsets.ViewSet):
@@ -42,18 +44,27 @@ class RecipeViewSet(viewsets.ViewSet):
             )
 
     def list(self, request):
+        user = request.user
+        tenant = request.tenant
+        query_params = request.query_params.urlencode()
+
+        cache_key = f"recipes_list_{tenant.id}_{user.id}_{query_params}"
+        cached_data = cache.get(cache_key)
+
+        if cached_data:
+            return Response(cached_data)
+
         recipes = (
             self.get_queryset(request)
             .select_related("user", "cuisine")
             .prefetch_related(
-                Prefetch(
-                    "ingredients",
-                    queryset=Ingredient.objects.only("id", "name")
-                ),
+                Prefetch("ingredients", queryset=Ingredient.objects.only("id", "name")),
                 Prefetch(
                     "recipe_pictures",
-                    queryset=RecipePicture.objects.filter(is_active=True).only("id", "picture", "order")
-                )
+                    queryset=RecipePicture.objects.filter(is_active=True).only(
+                        "id", "picture", "order"
+                    ),
+                ),
             )
             .only(
                 "id",
@@ -96,16 +107,17 @@ class RecipeViewSet(viewsets.ViewSet):
         page = paginator.paginate_queryset(recipes, request)
 
         serializer = RecipeListSerializer(page, many=True, context={"request": request})
-        return paginator.get_paginated_response(serializer.data)
+        response = paginator.get_paginated_response(serializer.data)
+
+        cache.set(cache_key, response.data, timeout=RECIPE_CACHE_TIMEOUT)
+
+        return response
 
     def retrieve(self, request, pk=None):
         qs = (
             self.get_queryset(request)
             .select_related("user", "cuisine")
-            .prefetch_related(
-                "recipe_ingredients__ingredient",
-                "recipe_pictures"
-            )
+            .prefetch_related("recipe_ingredients__ingredient", "recipe_pictures")
         )
 
         recipe = get_object_or_404(qs, pk=pk)
@@ -128,6 +140,7 @@ class RecipeViewSet(viewsets.ViewSet):
         else:
             serializer.save(user=request.user)
 
+        self._clear_recipe_cache(request.tenant.id)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
@@ -141,6 +154,7 @@ class RecipeViewSet(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
+        self._clear_recipe_cache(tenant.id)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def destroy(self, request, pk=None):
@@ -152,4 +166,11 @@ class RecipeViewSet(viewsets.ViewSet):
         recipe.deleted_at = timezone.now()
         recipe.save()
 
+        self._clear_recipe_cache(tenant.id)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def _clear_recipe_cache(self, tenant_id):
+        try:
+            cache.delete_pattern(f"recipes_list_{tenant_id}_*")
+        except AttributeError:
+            pass
