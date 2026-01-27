@@ -1,4 +1,5 @@
 from django.utils import timezone
+from django.core.cache import cache
 from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from rest_framework import viewsets, status
@@ -8,6 +9,7 @@ from ..permissions import IsAdmin, HasTenant
 from ..serializers import IngredientSerializer
 from common.pagination import DefaultPagination
 from common.enums import UserRole
+from common.constants import INGREDIENT_CACHE_TIMEOUT
 
 
 class IngredientViewSet(viewsets.ViewSet):
@@ -30,6 +32,16 @@ class IngredientViewSet(viewsets.ViewSet):
         return Ingredient.objects.filter(tenant=tenant, is_active=True)
 
     def list(self, request):
+        user = request.user
+        tenant = request.tenant
+        query_params = request.query_params.urlencode()
+
+        cache_key = f"ingredients_list_{tenant.id}_{user.id}_{query_params}"
+        cached_data = cache.get(cache_key)
+
+        if cached_data:
+            return Response(cached_data)
+
         ingredients = self.get_queryset(request)
 
         paginator = DefaultPagination()
@@ -38,7 +50,11 @@ class IngredientViewSet(viewsets.ViewSet):
         serializer = IngredientSerializer(
             paginated_qs, many=True, context={"request": request}
         )
-        return paginator.get_paginated_response(serializer.data)
+        response = paginator.get_paginated_response(serializer.data)
+
+        cache.set(cache_key, response.data, timeout=INGREDIENT_CACHE_TIMEOUT)
+
+        return response
 
     def retrieve(self, request, pk=None):
         ingredients = self.get_queryset(request)
@@ -59,6 +75,7 @@ class IngredientViewSet(viewsets.ViewSet):
                 old.is_active = True
                 old.deleted_at = None
                 old.save()
+                self._clear_ingredient_cache(tenant.id)
                 serializer = IngredientSerializer(old, context={"request": request})
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -67,6 +84,7 @@ class IngredientViewSet(viewsets.ViewSet):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save(tenant=tenant)
+        self._clear_ingredient_cache(tenant.id)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
@@ -78,6 +96,7 @@ class IngredientViewSet(viewsets.ViewSet):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        self._clear_ingredient_cache(tenant.id)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def destroy(self, request, pk=None):
@@ -102,4 +121,11 @@ class IngredientViewSet(viewsets.ViewSet):
         ingredient.deleted_at = timezone.now()
         ingredient.save()
 
+        self._clear_ingredient_cache(tenant.id)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def _clear_ingredient_cache(self, tenant_id):
+        try:
+            cache.delete_pattern(f"ingredients_list_{tenant_id}_*")
+        except AttributeError:
+            pass

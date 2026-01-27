@@ -15,11 +15,11 @@ def process_webhook_task(self, webhook_id: str):
         result = service.process_webhook(webhook)
         logger.info(f"Webhook {webhook_id} processed: {result['status']}")
         return result
-        
+
     except WebhookEvent.DoesNotExist:
         logger.error(f"Webhook {webhook_id} not found")
         return {"status": "error", "message": "Webhook not found"}
-        
+
     except Exception as e:
         logger.error(f"Webhook processing failed: {str(e)}", exc_info=True)
         try:

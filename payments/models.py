@@ -54,10 +54,12 @@ class Payment(BaseModel):
         blank=True,
         related_name="payments",
     )
-    
+
     order_id = models.CharField(max_length=100, unique=True, db_index=True)
-    payment_id = models.CharField(max_length=100, unique=True, null=True, blank=True, db_index=True)
-    
+    payment_id = models.CharField(
+        max_length=100, unique=True, null=True, blank=True, db_index=True
+    )
+
     amount = models.PositiveIntegerField(help_text="Amount in paise")
     currency = models.CharField(max_length=10, default="INR")
     status = models.CharField(
@@ -72,13 +74,13 @@ class Payment(BaseModel):
     fee = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     tax = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     captured = models.BooleanField(default=False, db_default=False)
-    
+
     error_code = models.CharField(max_length=100, null=True, blank=True)
     error_description = models.TextField(null=True, blank=True)
-    
+
     verified_at = models.DateTimeField(null=True, blank=True)
     captured_at = models.DateTimeField(null=True, blank=True)
-    
+
     is_active = models.BooleanField(default=True, db_default=True)
 
     class Meta:
@@ -87,26 +89,27 @@ class Payment(BaseModel):
     def __str__(self):
         return f"Payment({self.order_id}, {self.status})"
 
+
 class WebhookEvent(BaseModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    
+
     event_id = models.CharField(
-        max_length=255, 
-        unique=True, 
+        max_length=255,
+        unique=True,
         db_index=True,
-        help_text="Unique event ID from Razorpay"
+        help_text="Unique event ID from Razorpay",
     )
     event_type = models.CharField(
         max_length=100,
         db_index=True,
     )
-    
+
     payload = models.JSONField(help_text="Complete webhook payload")
-    
+
     processed = models.BooleanField(default=False, db_default=False, db_index=True)
     processed_at = models.DateTimeField(null=True, blank=True)
     processing_error = models.TextField(null=True, blank=True)
-    
+
     order_id = models.CharField(max_length=100, null=True, blank=True, db_index=True)
     payment_id = models.CharField(max_length=100, null=True, blank=True, db_index=True)
 
