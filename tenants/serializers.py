@@ -42,5 +42,7 @@ class TenantListSerializer(serializers.ModelSerializer):
             "is_premium",
             "user_count",
             "created_at",
+            "updated_at",
+            "deleted_at",
         ]
         read_only_fields = fields

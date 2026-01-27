@@ -139,7 +139,7 @@ class ResendOTPAPIView(APIView):
 
             return Response(
                 {"message": "OTP resent successfully"},
-                status=status.HTTP_200_OK,
+                status=status.HTTP_202_ACCEPTED,
             )
 
         except User.DoesNotExist:
@@ -164,7 +164,7 @@ class LoginAPIView(APIView):
                 "message": "OTP sent to your email. Please verify to complete login.",
                 "email": email,
             },
-            status=status.HTTP_200_OK,
+            status=status.HTTP_202_ACCEPTED,
         )
 
 
@@ -199,7 +199,7 @@ class LoginResendOTPAPIView(APIView):
 
         return Response(
             {"message": "OTP resent successfully"},
-            status=status.HTTP_200_OK,
+            status=status.HTTP_202_ACCEPTED,
         )
 
 
@@ -263,7 +263,7 @@ class ForgotPasswordAPIView(APIView):
 
         return Response(
             {"message": "If the email exists, a reset link was sent."},
-            status=status.HTTP_200_OK,
+            status=status.HTTP_202_ACCEPTED,
         )
 
 
@@ -355,7 +355,7 @@ class InviteUserAPIView(APIView):
 
         return Response(
             {"message": "Invitation sent successfully."},
-            status=status.HTTP_200_OK,
+            status=status.HTTP_202_ACCEPTED,
         )
 
 

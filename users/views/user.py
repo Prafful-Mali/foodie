@@ -1,5 +1,6 @@
 import logging
 from django.shortcuts import get_object_or_404
+from django.db import transaction
 from django.utils import timezone
 from datetime import timedelta
 from rest_framework.response import Response
@@ -16,6 +17,8 @@ from ..permissions import IsAdmin, IsOwnerOrAdmin, CanDeleteUser
 from ..models import User
 from ..tasks import (
     hard_delete_user,
+    deactivate_user_resources,
+    restore_user_resources,
     send_setup_password_email,
 )
 from common.enums import UserRole
@@ -102,9 +105,16 @@ class UserViewSet(viewsets.ViewSet):
                         {"errors": {"detail": "User is already active."}},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
-                user.is_active = True
-                user.deleted_at = None
-                user.save()
+                original_deleted_at = user.deleted_at
+                with transaction.atomic():
+                    user.is_active = True
+                    user.deleted_at = None
+                    user.save()
+                    restore_user_resources.delay(
+                        str(user.id),
+                        original_deleted_at.isoformat() if original_deleted_at else None,
+                    )
+
                 logger.info(f"User reactivated: {user.id} by: {request.user.id}")
             else:
                 raise ValidationError(
@@ -141,19 +151,18 @@ class UserViewSet(viewsets.ViewSet):
             user.is_email_verified = False
             eta = now + timedelta(days=7)
 
-        user.save()
+        with transaction.atomic():
+            user.save()
+
+            hard_delete_user.apply_async(
+                args=[str(user.id)],
+                eta=eta,
+            )
+
+            deactivate_user_resources.delay(str(user.id), now.isoformat())
+
         logger.info(
             f"User deactivated: {user.id} by: {request.user.id}, scheduled for hard delete in {eta - now}"
-        )
-
-        hard_delete_user.apply_async(
-            args=[str(user.id)],
-            eta=eta,
-        )
-
-        Recipe.objects.filter(user=user, is_active=True).update(
-            is_active=False,
-            deleted_at=now,
         )
 
         return Response(status=status.HTTP_204_NO_CONTENT)

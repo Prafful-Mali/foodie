@@ -122,7 +122,8 @@ class RazorpayWebhookView(APIView):
         if not signature:
             logger.error("Webhook without signature")
             return Response(
-                {"status": "error", "message": "Missing signature"}, status=400
+                {"status": "error", "message": "Missing signature"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         service = PaymentService()
@@ -132,7 +133,8 @@ class RazorpayWebhookView(APIView):
         ):
             logger.error("Invalid webhook signature")
             return Response(
-                {"status": "error", "message": "Invalid signature"}, status=400
+                {"status": "error", "message": "Invalid signature"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
@@ -146,16 +148,16 @@ class RazorpayWebhookView(APIView):
 
             if not created:
                 logger.info(f"Duplicate webhook {event_id}")
-                return Response({"status": "duplicate"}, status=200)
+                return Response({"status": "duplicate"}, status=status.HTTP_200_OK)
 
             process_webhook_task.delay(str(webhook.id))
 
             logger.info(f"Webhook {event_id} queued")
-            return Response({"status": "queued"}, status=200)
+            return Response({"status": "queued"}, status=status.HTTP_202_ACCEPTED)
 
         except Exception as e:
             logger.error(f"Webhook error: {e}", exc_info=True)
-            return Response({"status": "error"}, status=200)
+            return Response({"status": "error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 def subscribe_page(request):
