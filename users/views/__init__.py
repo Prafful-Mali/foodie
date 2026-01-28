@@ -1,7 +1,7 @@
 from .auth import (
-    RegisterAPIView,
-    VerifyOTPAPIView,
-    ResendOTPAPIView,
+    # RegisterAPIView,
+    # VerifyOTPAPIView,
+    # ResendOTPAPIView,
     LoginAPIView,
     LoginVerifyOTPAPIView,
     LoginResendOTPAPIView,
