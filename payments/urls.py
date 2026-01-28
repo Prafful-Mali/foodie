@@ -2,14 +2,20 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
 from .views import (
+    TenantOrderViewSet,
     SubscriptionViewSet,
+    PaymentViewSet,
+    WebhookViewSet,
     VerifyPaymentView,
     RazorpayWebhookView,
     subscribe_page,
 )
 
 router = DefaultRouter()
+router.register(r"orders", TenantOrderViewSet, basename="order")
 router.register(r"subscriptions", SubscriptionViewSet, basename="subscription")
+router.register(r"payments", PaymentViewSet, basename="payment")
+router.register(r"webhooks", WebhookViewSet, basename="webhook")
 
 urlpatterns = [
     path("api/v1/payments/verify/", VerifyPaymentView.as_view(), name="payment-verify"),

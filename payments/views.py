@@ -9,8 +9,14 @@ from rest_framework.views import APIView
 from rest_framework.decorators import action
 
 from common.pagination import DefaultPagination
-from .models import Subscription, Payment
-from .serializers import SubscriptionSerializer, VerifyPaymentSerializer
+from tenants.permissions import IsSuperAdmin
+from .models import Subscription, Payment, WebhookEvent
+from .serializers import (
+    SubscriptionSerializer,
+    VerifyPaymentSerializer,
+    PaymentSerializer,
+    WebhookEventSerializer,
+)
 from .permissions import IsTenantAdmin
 from .services import PaymentService
 from .tasks import process_webhook_task
@@ -18,7 +24,7 @@ from .tasks import process_webhook_task
 logger = logging.getLogger(__name__)
 
 
-class SubscriptionViewSet(viewsets.ViewSet):
+class TenantOrderViewSet(viewsets.ViewSet):
     def get_permissions(self):
         return [IsTenantAdmin()]
 
@@ -168,3 +174,21 @@ def subscribe_page(request):
         "payments/subscribe.html",
         {"razorpay_key_id": settings.RAZORPAY_KEY_ID},
     )
+
+
+class SubscriptionViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = [IsSuperAdmin]
+    queryset = Subscription.objects.all()
+    serializer_class = SubscriptionSerializer
+
+
+class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = [IsSuperAdmin]
+    queryset = Payment.objects.all()
+    serializer_class = PaymentSerializer
+
+
+class WebhookViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = [IsSuperAdmin]
+    queryset = WebhookEvent.objects.all()
+    serializer_class = WebhookEventSerializer
