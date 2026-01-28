@@ -11,6 +11,7 @@ from .utils import (
     get_user_otp,
 )
 
+
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)

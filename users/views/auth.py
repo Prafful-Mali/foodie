@@ -33,6 +33,7 @@ from ..permissions import IsAdmin
 
 logger = logging.getLogger(__name__)
 
+
 class LoginAPIView(APIView):
 
     def post(self, request):

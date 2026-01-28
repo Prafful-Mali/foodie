@@ -47,13 +47,6 @@ class RecipeViewSet(viewsets.ViewSet):
     def list(self, request):
         user = request.user
         tenant = request.tenant
-        query_params = request.query_params.urlencode()
-
-        cache_key = f"recipes_list_{tenant.id}_{user.id}_{query_params}"
-        cached_data = cache.get(cache_key)
-
-        if cached_data:
-            return Response(cached_data)
 
         recipes = (
             self.get_queryset(request)
@@ -114,8 +107,6 @@ class RecipeViewSet(viewsets.ViewSet):
         serializer = RecipeListSerializer(page, many=True, context={"request": request})
         response = paginator.get_paginated_response(serializer.data)
 
-        cache.set(cache_key, response.data, timeout=RECIPE_CACHE_TIMEOUT)
-
         return response
 
     def retrieve(self, request, pk=None):
@@ -126,7 +117,7 @@ class RecipeViewSet(viewsets.ViewSet):
                 "recipe_ingredients__ingredient",
                 Prefetch(
                     "recipe_pictures",
-                    queryset=RecipePicture.objects.filter(is_active=True)
+                    queryset=RecipePicture.objects.filter(is_active=True),
                 ),
             )
         )
@@ -150,7 +141,6 @@ class RecipeViewSet(viewsets.ViewSet):
         else:
             serializer.save(user=request.user)
 
-        self._clear_recipe_cache(request.tenant.id)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
@@ -164,7 +154,6 @@ class RecipeViewSet(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
-        self._clear_recipe_cache(tenant.id)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def destroy(self, request, pk=None):
@@ -176,11 +165,4 @@ class RecipeViewSet(viewsets.ViewSet):
         recipe.deleted_at = timezone.now()
         recipe.save()
 
-        self._clear_recipe_cache(tenant.id)
         return Response(status=status.HTTP_204_NO_CONTENT)
-
-    def _clear_recipe_cache(self, tenant_id):
-        try:
-            cache.delete_pattern(f"recipes_list_{tenant_id}_*")
-        except AttributeError:
-            pass

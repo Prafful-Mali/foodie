@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404
 from django.http import QueryDict
 from django.utils import timezone
 
+
 class CuisineSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cuisine
@@ -117,7 +118,7 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
 class RecipePictureSerializer(serializers.ModelSerializer):
     class Meta:
         model = RecipePicture
-        fields = ["id", "picture", "order"]
+        fields = ["id", "picture"]
         read_only_fields = ["id"]
 
 
@@ -150,6 +151,15 @@ class RecipeSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "user_id", "created_at", "updated_at"]
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if hasattr(instance, "recipe_pictures"):
+            active_pictures = instance.recipe_pictures.filter(is_active=True)
+            representation["recipe_pictures"] = RecipePictureSerializer(
+                active_pictures, many=True
+            ).data
+        return representation
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -352,7 +362,7 @@ class RecipeSerializer(serializers.ModelSerializer):
                     id=pic_id,
                     recipe=instance,
                     tenant=tenant,
-                    is_active=True,  
+                    is_active=True,
                 )
                 obj.is_active = False
                 obj.deleted_at = timezone.now()
@@ -365,7 +375,7 @@ class RecipeSerializer(serializers.ModelSerializer):
                     id=pic_id,
                     recipe=instance,
                     tenant=tenant,
-                    is_active=True,  
+                    is_active=True,
                 )
                 if file:
                     obj.picture = file
@@ -380,6 +390,7 @@ class RecipeSerializer(serializers.ModelSerializer):
                 )
 
         return instance
+
 
 class MiniIngredientSerializer(serializers.ModelSerializer):
     class Meta:

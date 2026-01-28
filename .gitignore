@@ -19,3 +19,4 @@ celerybeat-schedule.db
 app.log
 logs/
 media/
+.vscode/

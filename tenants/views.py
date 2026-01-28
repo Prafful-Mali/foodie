@@ -79,12 +79,12 @@ class TenantViewSet(viewsets.ViewSet):
 
         serializer = TenantSerializer(tenant, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        
+
         if is_restoring:
             tenant.is_active = True
             tenant.deleted_at = None
             tenant.save()
-            
+
         serializer.save()
 
         if is_restoring and deleted_at_timestamp:

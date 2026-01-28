@@ -179,19 +179,12 @@ def subscribe_page(request):
 
 @csrf_exempt
 def payment_callback(request):
-    """
-    Handles Razorpay's redirect after payment (same-tab flow).
-    Works for both Success and Failure cases.
-    """
-    # Some failure modes might use GET, success usually uses POST
     data = request.POST if request.method == "POST" else request.GET
 
-    # Case 1: Success (Razorpay identifies success with these three fields)
     razorpay_order_id = data.get("razorpay_order_id")
     razorpay_payment_id = data.get("razorpay_payment_id")
     razorpay_signature = data.get("razorpay_signature")
 
-    # Case 2: Failure (Razorpay sends 'error' fields on failure)
     error_desc = data.get("error[description]")
 
     if razorpay_order_id and razorpay_payment_id and razorpay_signature:
@@ -211,7 +204,6 @@ def payment_callback(request):
         else:
             return redirect("/subscribe/?status=failed")
 
-    # If error fields are present or required fields are missing, it's a failure
     reason = error_desc or "payment_failed"
     return redirect(f"/subscribe/?status=failed&reason={reason}")
 

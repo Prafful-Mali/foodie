@@ -6,8 +6,10 @@ from celery import shared_task
 from django.core.mail import send_mail
 from django.utils import timezone
 from django.db.models import F
+from django.db import transaction
 from django.core.management import call_command
 from datetime import timedelta
+from recipes.models import Recipe, RecipeIngredient, RecipePicture
 from common.constants import (
     OTP_TIMEOUT,
     OTP_EXPIRY_MINUTES,
@@ -16,32 +18,6 @@ from .utils import set_reset_token, hash_otp, set_user_otp
 from .models import User
 
 logger = logging.getLogger(__name__)
-
-
-# @shared_task
-# def send_verification_email(to_email):
-#     otp = f"{secrets.randbelow(1000000):06d}"
-#     set_user_otp(to_email, otp, prefix="otp", timeout=OTP_TIMEOUT)
-
-#     context = {
-#         "otp": otp,
-#         "expires_in": OTP_EXPIRY_MINUTES,
-#     }
-
-#     html_content = render_to_string("emails/verification_otp.html", context)
-#     text_content = f"Your OTP is {otp}. It expires in 5 minutes."
-
-#     send_mail(
-#         subject="Your OTP for verification",
-#         message=text_content,
-#         from_email=None,
-#         recipient_list=[to_email],
-#         html_message=html_content,
-#         fail_silently=False,
-#     )
-#     logger.info(f"Verification email sent to: {to_email}")
-
-#     return "OTP sent"
 
 
 @shared_task
@@ -173,25 +149,46 @@ def send_invite_email(to_email, base_url, tenant_name):
 
 @shared_task
 def deactivate_user_resources(user_id, deleted_at):
-    from recipes.models import Recipe
+    deleted_at_dt = timezone.datetime.fromisoformat(deleted_at)
 
-    Recipe.objects.filter(user_id=user_id, is_active=True).update(
-        is_active=False, deleted_at=deleted_at
+    with transaction.atomic():
+        Recipe.objects.filter(user_id=user_id, is_active=True).update(
+            is_active=False, deleted_at=deleted_at_dt
+        )
+
+        RecipeIngredient.objects.filter(recipe__user_id=user_id, is_active=True).update(
+            is_active=False, deleted_at=deleted_at_dt
+        )
+        RecipePicture.objects.filter(recipe__user_id=user_id, is_active=True).update(
+            is_active=False, deleted_at=deleted_at_dt
+        )
+
+    logger.info(
+        f"All active recipes and related resources deactivated for user: {user_id}"
     )
-    logger.info(f"All active recipes deactivated for user: {user_id}")
 
 
 @shared_task
 def restore_user_resources(user_id, deleted_at):
-    from recipes.models import Recipe
-
     if not deleted_at:
         return
 
-    Recipe.objects.filter(
-        user_id=user_id, is_active=False, deleted_at=deleted_at
-    ).update(is_active=True, deleted_at=None)
-    logger.info(f"Synchronized recipes restored for user: {user_id}")
+    deleted_at_dt = timezone.datetime.fromisoformat(deleted_at)
+
+    with transaction.atomic():
+        Recipe.objects.filter(
+            user_id=user_id, is_active=False, deleted_at=deleted_at_dt
+        ).update(is_active=True, deleted_at=None)
+
+        RecipeIngredient.objects.filter(
+            recipe__user_id=user_id, is_active=False, deleted_at=deleted_at_dt
+        ).update(is_active=True, deleted_at=None)
+
+        RecipePicture.objects.filter(
+            recipe__user_id=user_id, is_active=False, deleted_at=deleted_at_dt
+        ).update(is_active=True, deleted_at=None)
+
+    logger.info(f"Recipes and related resources restored for user: {user_id}")
 
 
 @shared_task
