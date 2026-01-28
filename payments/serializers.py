@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Subscription, Payment
+from .models import Subscription, Payment, WebhookEvent
 
 
 class SubscriptionSerializer(serializers.ModelSerializer):
@@ -15,6 +15,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             "activated_at",
             "created_at",
             "created_by_email",
+            "tenant",
         ]
         read_only_fields = fields
 
@@ -45,5 +46,14 @@ class PaymentSerializer(serializers.ModelSerializer):
             "captured_at",
             "created_at",
             "user_email",
+            "subscription",
+            "tenant",
         ]
         read_only_fields = fields
+
+
+class WebhookEventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WebhookEvent
+        fields = "__all__"
+        read_only_fields = ["id", "created_at", "updated_at"]

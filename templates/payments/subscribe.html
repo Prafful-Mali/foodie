@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Subscribe</title>
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </head>
+
 <body>
     <h3>Lifetime Subscription</h3>
 
@@ -15,7 +17,7 @@
 
     <pre id="status" style="display:none;"></pre>
 
-        <script>
+    <script>
         let pollInterval = null;
         let paymentAttempted = false;
 
@@ -34,7 +36,7 @@
                 attempts++;
 
                 try {
-                    const res = await fetch("/api/v1/subscriptions/status/", {
+                    const res = await fetch("/api/v1/orders/status/", {
                         headers: {
                             "Authorization": `Bearer ${token}`,
                         }
@@ -76,7 +78,7 @@
                 return;
             }
 
-            const res = await fetch("/api/v1/subscriptions/", {
+            const res = await fetch("/api/v1/orders/", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -92,7 +94,7 @@
 
             const data = await res.json();
 
-            paymentAttempted = false; 
+            paymentAttempted = false;
 
             const options = {
                 key: "{{ razorpay_key_id }}",
@@ -149,4 +151,5 @@
         };
     </script>
 </body>
+
 </html>

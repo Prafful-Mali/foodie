@@ -5,6 +5,7 @@ from .models import Cuisine, Ingredient, Recipe, RecipeIngredient, RecipePicture
 from common.enums import UserRole
 from django.shortcuts import get_object_or_404
 
+
 class CuisineSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cuisine
@@ -299,8 +300,7 @@ class RecipeSerializer(serializers.ModelSerializer):
                     tenant=tenant,
                     **ingredient_data,
                 )
-        
-        
+
         indices = set()
         for key in request.data:
             if key.startswith("pictures["):
@@ -319,7 +319,7 @@ class RecipeSerializer(serializers.ModelSerializer):
                     recipe=instance,
                     tenant=tenant,
                 )
-                obj.delete() 
+                obj.delete()
                 continue
 
             if pic_id:
@@ -340,7 +340,6 @@ class RecipeSerializer(serializers.ModelSerializer):
                     tenant=tenant,
                     picture=file,
                 )
-
 
         return instance
 
