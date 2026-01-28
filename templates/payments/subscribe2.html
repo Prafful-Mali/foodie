@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Subscribe</title>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+</head>
+
+<body>
+    <h3>Lifetime Subscription</h3>
+
+    <p>Paste JWT token:</p>
+    <textarea id="token" rows="3" cols="80"></textarea>
+
+    <br><br>
+    <button id="pay-btn">Pay</button>
+
+    <pre id="status" style="display:none;"></pre>
+
+    <script>
+        let pollInterval = null;
+        let paymentAttempted = false;
+
+        function showStatus(message) {
+            const el = document.getElementById("status");
+            el.textContent = message;
+            el.style.display = "block";
+        }
+
+        function startPolling(token) {
+            let attempts = 0;
+
+            showStatus("Waiting for webhook...");
+
+            pollInterval = setInterval(async () => {
+                attempts++;
+
+                try {
+                    const res = await fetch("/api/v1/orders/status/", {
+                        headers: {
+                            "Authorization": `Bearer ${token}`,
+                        }
+                    });
+
+                    if (res.ok) {
+                        const data = await res.json();
+
+                        if (data.status === "paid" && data.is_premium) {
+                            clearInterval(pollInterval);
+                            showStatus("Premium activated");
+                            return;
+                        }
+
+                        if (data.status === "failed") {
+                            clearInterval(pollInterval);
+                            showStatus("Payment failed");
+                            return;
+                        }
+
+                        showStatus(`Waiting... ${attempts}s`);
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+
+                if (attempts >= 60) {
+                    clearInterval(pollInterval);
+                    showStatus("Still processing. Check later.");
+                }
+            }, 1000);
+        }
+
+        document.getElementById("pay-btn").onclick = async function () {
+            const token = document.getElementById("token").value.trim();
+
+            if (!token) {
+                alert("Token required");
+                return;
+            }
+
+            const res = await fetch("/api/v1/orders/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                },
+                body: JSON.stringify({})
+            });
+
+            if (!res.ok) {
+                alert("Failed to create order");
+                return;
+            }
+
+            const data = await res.json();
+
+            paymentAttempted = false;
+
+            const options = {
+                key: "{{ razorpay_key_id }}",
+                amount: data.amount,
+                currency: "INR",
+                name: "Test",
+                description: "Lifetime",
+                order_id: data.order_id,
+                handler: async function (response) {
+                    paymentAttempted = true;
+                    showStatus("Verifying...");
+
+                    const verifyRes = await fetch("/api/v1/payments/verify/", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_signature: response.razorpay_signature,
+                        }),
+                    });
+
+                    if (verifyRes.ok) {
+                        const verifyData = await verifyRes.json();
+
+                        if (verifyData.is_premium) {
+                            showStatus("Premium activated");
+                        } else {
+                            startPolling(token);
+                        }
+                    } else {
+                        startPolling(token);
+                    }
+                },
+                modal: {
+                    ondismiss: function () {
+                        if (paymentAttempted) {
+                            startPolling(token);
+                        } else {
+                            showStatus("Payment cancelled");
+                        }
+                    }
+                },
+                    "retry": {
+                        "enabled": false
+                    }
+            };
+
+            const rzp = new Razorpay(options);
+            rzp.open();
+        };
+    </script>
+</body>
+
+</html>

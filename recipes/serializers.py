@@ -5,7 +5,7 @@ from .models import Cuisine, Ingredient, Recipe, RecipeIngredient, RecipePicture
 from common.enums import UserRole
 from django.shortcuts import get_object_or_404
 from django.http import QueryDict
-
+from django.utils import timezone
 
 class CuisineSerializer(serializers.ModelSerializer):
     class Meta:
@@ -352,8 +352,11 @@ class RecipeSerializer(serializers.ModelSerializer):
                     id=pic_id,
                     recipe=instance,
                     tenant=tenant,
+                    is_active=True,  
                 )
-                obj.delete()
+                obj.is_active = False
+                obj.deleted_at = timezone.now()
+                obj.save()
                 continue
 
             if pic_id:
@@ -362,6 +365,7 @@ class RecipeSerializer(serializers.ModelSerializer):
                     id=pic_id,
                     recipe=instance,
                     tenant=tenant,
+                    is_active=True,  
                 )
                 if file:
                     obj.picture = file
@@ -376,7 +380,6 @@ class RecipeSerializer(serializers.ModelSerializer):
                 )
 
         return instance
-
 
 class MiniIngredientSerializer(serializers.ModelSerializer):
     class Meta:

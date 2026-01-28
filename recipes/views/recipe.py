@@ -12,6 +12,7 @@ from ..serializers import (
     RecipeSerializer,
     RecipeListSerializer,
 )
+from users.models import User
 from common.pagination import DefaultPagination
 from common.enums import UserRole
 from common.constants import RECIPE_CACHE_TIMEOUT
@@ -121,7 +122,13 @@ class RecipeViewSet(viewsets.ViewSet):
         qs = (
             self.get_queryset(request)
             .select_related("user", "cuisine")
-            .prefetch_related("recipe_ingredients__ingredient", "recipe_pictures")
+            .prefetch_related(
+                "recipe_ingredients__ingredient",
+                Prefetch(
+                    "recipe_pictures",
+                    queryset=RecipePicture.objects.filter(is_active=True)
+                ),
+            )
         )
 
         recipe = get_object_or_404(qs, pk=pk)
@@ -137,7 +144,6 @@ class RecipeViewSet(viewsets.ViewSet):
         target_user_id = serializer.validated_data.pop("target_user_id", None)
 
         if target_user_id and request.user.role == UserRole.ADMIN:
-            from users.models import User
 
             target_user = User.objects.get(id=target_user_id)
             serializer.save(user=target_user)

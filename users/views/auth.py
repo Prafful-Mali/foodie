@@ -6,14 +6,10 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 
-# from common.enums import UserRole
 from ..serializers import (
-    # RegisterSerializer,
     LoginSerializer,
     TokenRefreshSerializer,
     ChangePasswordSerializer,
-    # VerifyOTPSerializer,
-    # ResendOTPSerializer,
     ForgotPasswordSerializer,
     ResetPasswordSerializer,
     LoginVerifyOTPSerializer,
@@ -23,7 +19,6 @@ from ..serializers import (
 )
 from ..models import User
 from ..tasks import (
-    # send_verification_email,
     send_reset_password_email,
     send_login_otp_email,
     send_invite_email,
@@ -31,126 +26,12 @@ from ..tasks import (
 from ..utils import (
     get_user_id_from_token,
     delete_reset_token,
-    # hash_otp,
     is_otp_rate_limited,
-    # get_user_otp,
     delete_user_otp,
 )
 from ..permissions import IsAdmin
 
 logger = logging.getLogger(__name__)
-
-
-# class RegisterAPIView(APIView):
-#     def post(self, request, tenant_id=None):
-#         data = request.data.copy()
-#         data["tenant_id"] = tenant_id
-
-#         serializer = RegisterSerializer(data=data)
-
-#         serializer.is_valid(raise_exception=True)
-
-#         user = serializer.save()
-#         if is_otp_rate_limited(user.email):
-#             return Response(
-#                 {"errors": {"detail": "Please wait before requesting OTP again"}},
-#                 status=status.HTTP_429_TOO_MANY_REQUESTS,
-#             )
-
-#         send_verification_email.delay(user.email)
-
-#         logger.info(f"User registered: {user.email}, tenant: {user.tenant_id}")
-
-#         return Response(
-#             {"message": "Registration successful. OTP sent to email."},
-#             status=status.HTTP_201_CREATED,
-#         )
-
-
-# class VerifyOTPAPIView(APIView):
-#     def post(self, request):
-#         serializer = VerifyOTPSerializer(data=request.data)
-
-#         serializer.is_valid(raise_exception=True)
-
-#         email = serializer.validated_data["email"]
-#         user_otp = serializer.validated_data["otp"]
-
-#         saved_otp = get_user_otp(email)
-#         if not saved_otp:
-#             return Response(
-#                 {"errors": {"detail": "OTP expired or invalid"}},
-#                 status=status.HTTP_400_BAD_REQUEST,
-#             )
-
-#         if str(saved_otp) != hash_otp(str(user_otp)):
-#             return Response(
-#                 {"errors": {"detail": "Invalid OTP"}},
-#                 status=status.HTTP_400_BAD_REQUEST,
-#             )
-
-#         try:
-#             user = User.objects.get(email=email)
-#             user.is_email_verified = True
-#             user.save(update_fields=["is_email_verified"])
-
-#             delete_user_otp(email)
-
-#             logger.info(f"Email verified for user: {email}")
-
-#             return Response(
-#                 {
-#                     "message": "Email verified successfully",
-#                 },
-#                 status=status.HTTP_200_OK,
-#             )
-#         except User.DoesNotExist:
-#             return Response(
-#                 {"errors": {"detail": "User not found"}},
-#                 status=status.HTTP_404_NOT_FOUND,
-#             )
-
-
-# class ResendOTPAPIView(APIView):
-#     def post(self, request):
-#         serializer = ResendOTPSerializer(data=request.data)
-
-#         serializer.is_valid(raise_exception=True)
-
-#         email = serializer.validated_data["email"]
-
-#         try:
-#             user = User.objects.get(email=email)
-
-#             if user.is_email_verified:
-#                 return Response(
-#                     {"errors": {"detail": "Email already verified"}},
-#                     status=status.HTTP_400_BAD_REQUEST,
-#                 )
-
-#             if is_otp_rate_limited(email):
-#                 return Response(
-#                     {
-#                         "errors": {
-#                             "detail": "Please wait 5 minutes before requesting again"
-#                         }
-#                     },
-#                     status=status.HTTP_429_TOO_MANY_REQUESTS,
-#                 )
-
-#             send_verification_email.delay(email)
-
-#             return Response(
-#                 {"message": "OTP resent successfully"},
-#                 status=status.HTTP_202_ACCEPTED,
-#             )
-
-#         except User.DoesNotExist:
-#             return Response(
-#                 {"errors": {"detail": "User not found"}},
-#                 status=status.HTTP_404_NOT_FOUND,
-#             )
-
 
 class LoginAPIView(APIView):
 

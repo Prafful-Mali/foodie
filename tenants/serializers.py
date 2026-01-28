@@ -15,7 +15,7 @@ class TenantSerializer(serializers.ModelSerializer):
             "updated_at",
             "deleted_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at", "deleted_at"]
+        read_only_fields = ["id", "created_at", "updated_at"]
 
     def validate_name(self, value):
         if not value or not value.strip():

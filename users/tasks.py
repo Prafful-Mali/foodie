@@ -18,30 +18,30 @@ from .models import User
 logger = logging.getLogger(__name__)
 
 
-@shared_task
-def send_verification_email(to_email):
-    otp = f"{secrets.randbelow(1000000):06d}"
-    set_user_otp(to_email, otp, prefix="otp", timeout=OTP_TIMEOUT)
+# @shared_task
+# def send_verification_email(to_email):
+#     otp = f"{secrets.randbelow(1000000):06d}"
+#     set_user_otp(to_email, otp, prefix="otp", timeout=OTP_TIMEOUT)
 
-    context = {
-        "otp": otp,
-        "expires_in": OTP_EXPIRY_MINUTES,
-    }
+#     context = {
+#         "otp": otp,
+#         "expires_in": OTP_EXPIRY_MINUTES,
+#     }
 
-    html_content = render_to_string("emails/verification_otp.html", context)
-    text_content = f"Your OTP is {otp}. It expires in 5 minutes."
+#     html_content = render_to_string("emails/verification_otp.html", context)
+#     text_content = f"Your OTP is {otp}. It expires in 5 minutes."
 
-    send_mail(
-        subject="Your OTP for verification",
-        message=text_content,
-        from_email=None,
-        recipient_list=[to_email],
-        html_message=html_content,
-        fail_silently=False,
-    )
-    logger.info(f"Verification email sent to: {to_email}")
+#     send_mail(
+#         subject="Your OTP for verification",
+#         message=text_content,
+#         from_email=None,
+#         recipient_list=[to_email],
+#         html_message=html_content,
+#         fail_silently=False,
+#     )
+#     logger.info(f"Verification email sent to: {to_email}")
 
-    return "OTP sent"
+#     return "OTP sent"
 
 
 @shared_task
