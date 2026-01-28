@@ -3,7 +3,7 @@ from users.models import User
 from rest_framework import serializers
 from .models import Cuisine, Ingredient, Recipe, RecipeIngredient, RecipePicture
 from common.enums import UserRole
-
+from django.shortcuts import get_object_or_404
 
 class CuisineSerializer(serializers.ModelSerializer):
     class Meta:
@@ -299,6 +299,48 @@ class RecipeSerializer(serializers.ModelSerializer):
                     tenant=tenant,
                     **ingredient_data,
                 )
+        
+        
+        indices = set()
+        for key in request.data:
+            if key.startswith("pictures["):
+                idx = key.split("[")[1].split("]")[0]
+                indices.add(idx)
+
+        for idx in indices:
+            pic_id = request.data.get(f"pictures[{idx}][id]")
+            file = request.FILES.get(f"pictures[{idx}][picture]")
+            delete_flag = request.data.get(f"pictures[{idx}][delete]")
+
+            if delete_flag and pic_id:
+                obj = get_object_or_404(
+                    RecipePicture,
+                    id=pic_id,
+                    recipe=instance,
+                    tenant=tenant,
+                )
+                obj.delete() 
+                continue
+
+            if pic_id:
+                obj = get_object_or_404(
+                    RecipePicture,
+                    id=pic_id,
+                    recipe=instance,
+                    tenant=tenant,
+                )
+                if file:
+                    obj.picture = file
+                    obj.save()
+                continue
+
+            if file:
+                RecipePicture.objects.create(
+                    recipe=instance,
+                    tenant=tenant,
+                    picture=file,
+                )
+
 
         return instance
 
