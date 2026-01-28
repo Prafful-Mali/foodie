@@ -73,7 +73,7 @@ class Recipe(BaseModel):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     preparation_steps = models.TextField()
-    cooking_time = models.PositiveIntegerField()
+    cooking_time = models.PositiveIntegerField(help_text="Time in minutes")
     sharing_status = models.CharField(
         max_length=20,
         choices=SharingStatus.choices,

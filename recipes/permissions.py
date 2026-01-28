@@ -20,12 +20,18 @@ class IsAdmin(BasePermission):
         if not request.user.is_authenticated:
             return False
 
+        if request.user.is_superadmin:
+            return False
+
         return request.user.role == UserRole.ADMIN
 
 
 class IsOwnerOrAdmin(BasePermission):
 
     def has_object_permission(self, request, view, obj):
+        if request.user.is_superadmin:
+            return False
+
         if request.user.role == UserRole.ADMIN:
             if hasattr(obj, "tenant") and obj.tenant != request.tenant:
                 return False
@@ -37,6 +43,9 @@ class IsOwnerOrAdmin(BasePermission):
 class CanViewRecipe(BasePermission):
 
     def has_object_permission(self, request, view, obj):
+        if request.user.is_superadmin:
+            return False
+
         if request.user.role == UserRole.ADMIN:
             return obj.tenant == request.tenant
 
