@@ -4,6 +4,7 @@ from rest_framework import serializers
 from .models import Cuisine, Ingredient, Recipe, RecipeIngredient, RecipePicture
 from common.enums import UserRole
 from django.shortcuts import get_object_or_404
+from django.http import QueryDict
 
 
 class CuisineSerializer(serializers.ModelSerializer):
@@ -158,6 +159,39 @@ class RecipeSerializer(serializers.ModelSerializer):
             if request.user.role == UserRole.ADMIN:
                 self.fields["is_active"] = serializers.BooleanField(read_only=True)
                 self.fields["deleted_at"] = serializers.DateTimeField(read_only=True)
+
+    def to_internal_value(self, data):
+        if isinstance(data, (dict, QueryDict)):
+            nested_keys = [
+                k for k in data.keys() if k.startswith("recipe_ingredients[")
+            ]
+            if nested_keys:
+                if hasattr(data, "dict"):
+                    new_data = data.dict()
+                else:
+                    new_data = dict(data)
+
+                recipe_ingredients = []
+                indices = set()
+                for key in nested_keys:
+                    match = re.search(r"recipe_ingredients\[(\d+)\]", key)
+                    if match:
+                        indices.add(match.group(1))
+
+                for idx in sorted(list(indices), key=int):
+                    ingredient_data = {}
+                    for field in ["ingredient_id", "quantity", "unit"]:
+                        lookup_key = f"recipe_ingredients[{idx}][{field}]"
+                        if lookup_key in data:
+                            ingredient_data[field] = data.get(lookup_key)
+                    if ingredient_data:
+                        recipe_ingredients.append(ingredient_data)
+
+                if recipe_ingredients:
+                    new_data["recipe_ingredients"] = recipe_ingredients
+                    data = new_data
+
+        return super().to_internal_value(data)
 
     def validate_target_user_id(self, value):
         if value is None:
