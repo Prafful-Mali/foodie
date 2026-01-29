@@ -21,7 +21,7 @@ class PaymentService:
         )
 
     @transaction.atomic
-    def create_subscription(self, tenant, user) -> Tuple[Subscription, Payment, Dict]:
+    def create_subscription(self, tenant, user):
         existing = Subscription.objects.filter(
             tenant=tenant, status=SubscriptionStatus.PAID, is_active=True
         ).first()
@@ -65,7 +65,7 @@ class PaymentService:
     @transaction.atomic
     def verify_payment_signature(
         self, payment: Payment, payment_id: str, signature: str
-    ) -> bool:
+    ):
         try:
             self.client.utility.verify_payment_signature(
                 {
@@ -89,7 +89,7 @@ class PaymentService:
 
         return True
 
-    def verify_webhook_signature(self, body: str, signature: str) -> bool:
+    def verify_webhook_signature(self, body: str, signature: str):
         try:
             self.client.utility.verify_webhook_signature(
                 body=body, signature=signature, secret=settings.RAZORPAY_WEBHOOK_SECRET
@@ -102,7 +102,7 @@ class PaymentService:
     @transaction.atomic
     def store_webhook(
         self, event_id: str, event_type: str, payload: Dict
-    ) -> Tuple[WebhookEvent, bool]:
+    ):
         payment_entity = payload.get("payload", {}).get("payment", {}).get("entity", {})
         order_id = payment_entity.get("order_id")
         payment_id = payment_entity.get("id")
@@ -121,7 +121,7 @@ class PaymentService:
         return webhook, created
 
     @transaction.atomic
-    def process_webhook(self, webhook_event: WebhookEvent) -> Dict:
+    def process_webhook(self, webhook_event: WebhookEvent):
         webhook_event = WebhookEvent.objects.select_for_update().get(
             id=webhook_event.id
         )

@@ -5,7 +5,6 @@ from django.template.loader import render_to_string
 from celery import shared_task
 from django.core.mail import send_mail
 from django.utils import timezone
-from django.db.models import F
 from django.db import transaction
 from django.core.management import call_command
 from datetime import timedelta
@@ -13,20 +12,12 @@ from recipes.models import Recipe, RecipeIngredient, RecipePicture
 from common.constants import (
     OTP_TIMEOUT,
     OTP_EXPIRY_MINUTES,
+    USER_CLEANUP_DAYS,
 )
 from .utils import set_reset_token, hash_otp, set_user_otp
 from .models import User
 
 logger = logging.getLogger(__name__)
-
-
-@shared_task
-def cleanup_soft_deleted_users():
-    threshold = timezone.now() - timedelta(days=7)
-    User.objects.filter(
-        is_active=False, deleted_at__lt=threshold, deleted_by=F("id")
-    ).delete()
-    logger.info("Cleanup of self-deleted users completed")
 
 
 @shared_task
@@ -195,3 +186,14 @@ def restore_user_resources(user_id, deleted_at):
 def flush_expired_tokens():
     call_command("flushexpiredtokens")
     logger.info("Expired tokens flushed from blacklist")
+
+
+@shared_task
+def cleanup_soft_deleted_users():
+    time = timezone.now() - timedelta(days=USER_CLEANUP_DAYS)
+    deleted_count, _ = User.objects.filter(
+        is_active=False,
+        deleted_at__lt=time,
+        deleted_by__isnull=False,
+    ).delete()
+    logger.info(f"Cleanup completed: {deleted_count} self-deleted users removed")

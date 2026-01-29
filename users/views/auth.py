@@ -302,7 +302,6 @@ class AcceptInvitePage(APIView):
 
         return Response(
             {
-                "success": True,
                 "message": "Invitation accepted successfully. You can now login.",
             },
             status=status.HTTP_200_OK,
