@@ -1,8 +1,9 @@
 import logging
 import uuid
 from django.conf import settings
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, render, redirect
 from django.core.exceptions import ValidationError
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -174,6 +175,37 @@ def subscribe_page(request):
         "payments/subscribe.html",
         {"razorpay_key_id": settings.RAZORPAY_KEY_ID},
     )
+
+
+@csrf_exempt
+def payment_callback(request):
+    data = request.POST if request.method == "POST" else request.GET
+
+    razorpay_order_id = data.get("razorpay_order_id")
+    razorpay_payment_id = data.get("razorpay_payment_id")
+    razorpay_signature = data.get("razorpay_signature")
+
+    error_desc = data.get("error[description]")
+
+    if razorpay_order_id and razorpay_payment_id and razorpay_signature:
+        payment = Payment.objects.filter(order_id=razorpay_order_id).first()
+        if not payment:
+            return redirect("/subscribe/?status=failed&reason=order_not_found")
+
+        service = PaymentService()
+        is_valid = service.verify_payment_signature(
+            payment=payment,
+            payment_id=razorpay_payment_id,
+            signature=razorpay_signature,
+        )
+
+        if is_valid:
+            return redirect("/subscribe/?status=success")
+        else:
+            return redirect("/subscribe/?status=failed")
+
+    reason = error_desc or "payment_failed"
+    return redirect(f"/subscribe/?status=failed&reason={reason}")
 
 
 class SubscriptionViewSet(viewsets.ReadOnlyModelViewSet):

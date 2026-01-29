@@ -4,11 +4,11 @@ import hashlib
 from common.constants import RESET_TOKEN_TTL, OTP_TIMEOUT, OTP_LIMIT_TIMEOUT
 
 
-def hash_token(token: str) -> str:
+def hash_token(token: str):
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def hash_otp(otp: str) -> str:
+def hash_otp(otp: str):
     return hash_token(otp)
 
 
@@ -26,7 +26,7 @@ def delete_user_otp(email: str, prefix: str = "otp"):
 
 def is_otp_rate_limited(
     email: str, prefix: str = "otp", timeout: int = OTP_LIMIT_TIMEOUT
-) -> bool:
+):
     key = f"{prefix}_limit:{email}"
     return not cache.add(key, True, timeout=timeout)
 

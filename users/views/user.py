@@ -96,64 +96,51 @@ class UserViewSet(viewsets.ViewSet):
         queryset = self.get_queryset(request)
         user = get_object_or_404(queryset, pk=pk)
 
-        is_active = request.data.get("is_active")
-        if is_active is not None:
-            if str(is_active).lower() == "true":
-                if user.is_active:
-                    return Response(
-                        {"errors": {"detail": "User is already active."}},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-                original_deleted_at = user.deleted_at
-                with transaction.atomic():
-                    user.is_active = True
-                    user.deleted_at = None
-                    user.save()
-                    restore_user_resources.delay(
-                        str(user.id),
-                        (
-                            original_deleted_at.isoformat()
-                            if original_deleted_at
-                            else None
-                        ),
-                    )
+        is_restoring = not user.is_active and request.data.get("is_active") is True
 
-                logger.info(f"User reactivated: {user.id} by: {request.user.id}")
-            else:
-                raise ValidationError(
-                    {"detail": "To restore a user, set is_active=true."}
+        deleted_at_timestamp = None
+        if is_restoring:
+            if user.is_active:
+                return Response(
+                    {"errors": {"detail": "User is already active."}},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
+            if user.deleted_at:
+                deleted_at_timestamp = user.deleted_at.isoformat()
 
         serializer = UserSerializer(
             user, data=request.data, partial=True, context={"request": request}
         )
         serializer.is_valid(raise_exception=True)
+
+        if is_restoring:
+            user.is_active = True
+            user.deleted_at = None
+            user.save()
+
         serializer.save()
+
+        if is_restoring and deleted_at_timestamp:
+            restore_user_resources.delay(str(user.id), deleted_at_timestamp)
+            logger.info(f"User reactivated: {user.id} by: {request.user.id}")
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def destroy(self, request, pk=None):
-        user = get_object_or_404(User, pk=pk)
+        user = get_object_or_404(User, pk=pk, is_active=True)
         self.check_object_permissions(request, user)
 
-        if not user.is_active:
-            return Response(
-                {"errors": {"detail": "User is already deleted."}},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        now = timezone.now()
-
+        deleted_at = timezone.now()
         user.is_active = False
-        user.deleted_at = now
+        user.deleted_at = deleted_at
         user.deleted_by = request.user
 
         if request.user.role != UserRole.ADMIN:
             user.is_email_verified = False
 
-        with transaction.atomic():
-            user.save()
-            deactivate_user_resources.delay(str(user.id), now.isoformat())
+        user.save()
+
+        deactivate_user_resources.delay(str(user.id), deleted_at.isoformat())
 
         logger.info(f"User deactivated: {user.id} by: {request.user.id}")
 

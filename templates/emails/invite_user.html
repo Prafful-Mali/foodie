@@ -1,15 +1,70 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <title>Invitation to Join</title>
+  <meta charset="UTF-8" />
+  <title>Invitation to Join</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f6f7fb;
+      padding: 20px;
+    }
+    .card {
+      max-width: 480px;
+      margin: auto;
+      background: #ffffff;
+      padding: 24px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    .link-box {
+      background-color: #f1f3f8;
+      padding: 12px;
+      border-radius: 6px;
+      word-break: break-all;
+      margin: 12px 0;
+      font-size: 14px;
+    }
+    .warning {
+      background-color: #fff3cd;
+      color: #856404;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      margin-top: 20px;
+    }
+    .footer {
+      font-size: 12px;
+      color: #777;
+      margin-top: 24px;
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
-    <h2>You've been invited!</h2>
-    <p>{{ inviter_name }} has invited you to join <strong>{{ tenant_name }}</strong>.</p>
-    <p>Click the link below to accept the invitation and set up your account:</p>
-    <p>{{ invite_link }}</p>
+  <div class="card">
+    <h2>You’ve been invited!</h2>
+
+    <p>
+      {{ inviter_name }} has invited you to join
+      <strong>{{ tenant_name }}</strong>.
+    </p>
+
+    <p>Use the link below to accept the invitation and set up your account:</p>
+
+    <div class="link-box">
+      <a href="{{ invite_link }}">{{ invite_link }}</a>
+    </div>
+
     <p>This link will expire in 15 minutes.</p>
-    <p>If you didn't expect this invitation, you can safely ignore this email.</p>
+
+    <div class="warning">
+      If you weren’t expecting this invitation, you can safely ignore this email.
+    </div>
+
+    <div class="footer">
+      This is an automated email. Please do not reply.
+    </div>
+  </div>
 </body>
 </html>

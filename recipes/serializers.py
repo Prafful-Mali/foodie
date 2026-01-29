@@ -4,6 +4,8 @@ from rest_framework import serializers
 from .models import Cuisine, Ingredient, Recipe, RecipeIngredient, RecipePicture
 from common.enums import UserRole
 from django.shortcuts import get_object_or_404
+from django.http import QueryDict
+from django.utils import timezone
 
 
 class CuisineSerializer(serializers.ModelSerializer):
@@ -116,7 +118,7 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
 class RecipePictureSerializer(serializers.ModelSerializer):
     class Meta:
         model = RecipePicture
-        fields = ["id", "picture", "order"]
+        fields = ["id", "picture"]
         read_only_fields = ["id"]
 
 
@@ -150,6 +152,15 @@ class RecipeSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "user_id", "created_at", "updated_at"]
 
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if hasattr(instance, "recipe_pictures"):
+            active_pictures = instance.recipe_pictures.filter(is_active=True)
+            representation["recipe_pictures"] = RecipePictureSerializer(
+                active_pictures, many=True
+            ).data
+        return representation
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -158,6 +169,39 @@ class RecipeSerializer(serializers.ModelSerializer):
             if request.user.role == UserRole.ADMIN:
                 self.fields["is_active"] = serializers.BooleanField(read_only=True)
                 self.fields["deleted_at"] = serializers.DateTimeField(read_only=True)
+
+    def to_internal_value(self, data):
+        if isinstance(data, (dict, QueryDict)):
+            nested_keys = [
+                k for k in data.keys() if k.startswith("recipe_ingredients[")
+            ]
+            if nested_keys:
+                if hasattr(data, "dict"):
+                    new_data = data.dict()
+                else:
+                    new_data = dict(data)
+
+                recipe_ingredients = []
+                indices = set()
+                for key in nested_keys:
+                    match = re.search(r"recipe_ingredients\[(\d+)\]", key)
+                    if match:
+                        indices.add(match.group(1))
+
+                for idx in sorted(list(indices), key=int):
+                    ingredient_data = {}
+                    for field in ["ingredient_id", "quantity", "unit"]:
+                        lookup_key = f"recipe_ingredients[{idx}][{field}]"
+                        if lookup_key in data:
+                            ingredient_data[field] = data.get(lookup_key)
+                    if ingredient_data:
+                        recipe_ingredients.append(ingredient_data)
+
+                if recipe_ingredients:
+                    new_data["recipe_ingredients"] = recipe_ingredients
+                    data = new_data
+
+        return super().to_internal_value(data)
 
     def validate_target_user_id(self, value):
         if value is None:
@@ -318,8 +362,11 @@ class RecipeSerializer(serializers.ModelSerializer):
                     id=pic_id,
                     recipe=instance,
                     tenant=tenant,
+                    is_active=True,
                 )
-                obj.delete()
+                obj.is_active = False
+                obj.deleted_at = timezone.now()
+                obj.save()
                 continue
 
             if pic_id:
@@ -328,6 +375,7 @@ class RecipeSerializer(serializers.ModelSerializer):
                     id=pic_id,
                     recipe=instance,
                     tenant=tenant,
+                    is_active=True,
                 )
                 if file:
                     obj.picture = file

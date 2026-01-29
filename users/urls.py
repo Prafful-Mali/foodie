@@ -1,14 +1,14 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    RegisterAPIView,
+    # RegisterAPIView,
     LoginAPIView,
     LogoutAPIView,
     TokenRefreshAPIView,
     ChangePasswordView,
     UserViewSet,
-    VerifyOTPAPIView,
-    ResendOTPAPIView,
+    # VerifyOTPAPIView,
+    # ResendOTPAPIView,
     ForgotPasswordAPIView,
     ResetPasswordPage,
     LoginVerifyOTPAPIView,
@@ -22,9 +22,6 @@ router = DefaultRouter()
 router.register("users", UserViewSet, basename="user")
 
 urlpatterns = [
-    path(
-        "tenants/<uuid:tenant_id>/register/", RegisterAPIView.as_view(), name="register"
-    ),
     path("auth/login/", LoginAPIView.as_view(), name="login"),
     path(
         "auth/login/verify-otp/",
@@ -41,8 +38,6 @@ urlpatterns = [
     path(
         "users/change-password/", ChangePasswordView.as_view(), name="password_change"
     ),
-    path("auth/verify-otp/", VerifyOTPAPIView.as_view(), name="verify_otp"),
-    path("auth/resend-otp/", ResendOTPAPIView.as_view(), name="resend_otp"),
     path("forgot-password/", ForgotPasswordAPIView.as_view(), name="forgot_password"),
     path(
         "reset-password/<str:token>/",

@@ -63,7 +63,7 @@
                     console.error(e);
                 }
 
-                if (attempts >= 60) {
+                if (attempts >= 10) {
                     clearInterval(pollInterval);
                     showStatus("Still processing. Check later.");
                 }

@@ -79,22 +79,18 @@ class TenantViewSet(viewsets.ViewSet):
 
         serializer = TenantSerializer(tenant, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
+
+        if is_restoring:
+            tenant.is_active = True
+            tenant.deleted_at = None
+            tenant.save()
+
         serializer.save()
 
         if is_restoring and deleted_at_timestamp:
             restore_tenant_related_data.delay(str(tenant.id), deleted_at_timestamp)
 
-        return Response(
-            {
-                "data": serializer.data,
-                "message": (
-                    "Tenant updated successfully. Related data is being restored in the background."
-                    if is_restoring
-                    else "Tenant updated successfully."
-                ),
-            },
-            status=status.HTTP_200_OK,
-        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def destroy(self, request, pk=None):
         tenant = get_object_or_404(Tenant, pk=pk, is_active=True)
@@ -106,9 +102,4 @@ class TenantViewSet(viewsets.ViewSet):
 
         soft_delete_tenant_related_data.delay(str(tenant.id), deleted_at.isoformat())
 
-        return Response(
-            {
-                "message": "Tenant soft deleted successfully. Related data is being deleted in the background."
-            },
-            status=status.HTTP_200_OK,
-        )
+        return Response(status=status.HTTP_204_NO_CONTENT)

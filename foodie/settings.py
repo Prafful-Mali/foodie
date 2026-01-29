@@ -13,8 +13,14 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+from datetime import timedelta
 from celery.schedules import crontab
-from common.constants import ACCESS_TOKEN_LIFETIME, REFRESH_TOKEN_LIFETIME
+from common.constants import (
+    ACCESS_TOKEN_LIFETIME,
+    REFRESH_TOKEN_LIFETIME,
+    USER_CLEANUP_TASK_INTERVAL_DAYS,
+    FLUSH_TOKENS_TASK_INTERVAL_DAYS,
+)
 
 
 load_dotenv()
@@ -166,22 +172,21 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_BEAT_SCHEDULE = {
     "cleanup-soft-deleted-users": {
         "task": "users.tasks.cleanup_soft_deleted_users",
-        "schedule": crontab(hour=3, minute=0),
+        "schedule": timedelta(days=USER_CLEANUP_TASK_INTERVAL_DAYS),
     },
     "flush-expired-tokens": {
         "task": "users.tasks.flush_expired_tokens",
-        "schedule": crontab(hour=0, minute=0),
+        "schedule": timedelta(days=FLUSH_TOKENS_TASK_INTERVAL_DAYS),
     },
 }
 
-# EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-# EMAIL_HOST = os.getenv("EMAIL_HOST")
-# EMAIL_PORT = int(os.getenv("EMAIL_PORT"))
-# EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS") == "True"
-# EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
-# EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
-# DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL")
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = os.getenv("EMAIL_HOST")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT"))
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS") == "True"
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL")
 
 CACHES = {
     "default": {

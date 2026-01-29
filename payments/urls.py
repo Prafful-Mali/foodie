@@ -9,6 +9,7 @@ from .views import (
     VerifyPaymentView,
     RazorpayWebhookView,
     subscribe_page,
+    payment_callback,
 )
 
 router = DefaultRouter()
@@ -25,5 +26,6 @@ urlpatterns = [
         name="razorpay-webhook",
     ),
     path("subscribe/", subscribe_page, name="subscribe-page"),
+    path("payment/callback/", payment_callback, name="payment-callback"),
     path("api/v1/", include(router.urls)),
 ]
