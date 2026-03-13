@@ -169,19 +169,19 @@ jobs:
             # 4. Login to GHCR and pull
             # ============================
             echo "==> Logging in to GHCR..."
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
             echo "==> Pulling latest image..."
-            docker pull "$DOCKER_IMAGE"
+            sudo docker pull "$DOCKER_IMAGE"
 
             # ============================
             # 5. Deploy with Docker Compose
             # ============================
             echo "==> Deploying..."
-            docker compose -f docker-compose.prod.yml down
-            DOCKER_IMAGE="$DOCKER_IMAGE" docker compose -f docker-compose.prod.yml up -d
+            sudo docker compose -f docker-compose.prod.yml down
+            sudo DOCKER_IMAGE="$DOCKER_IMAGE" docker compose -f docker-compose.prod.yml up -d
 
             # Cleanup old images
-            docker image prune -f
+            sudo docker image prune -f
 
             echo "==> Deployment complete!"
