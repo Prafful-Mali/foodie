@@ -15,6 +15,7 @@ dependencies = [
     "python-json-logger>=4.0.0",
     "razorpay>=2.0.0",
     "pillow>=11.1.0",
+    "gunicorn>=23.0.0",
 ]
 
 [dependency-groups]

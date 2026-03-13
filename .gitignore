@@ -19,3 +19,5 @@ logs/
 media/
 .vscode/
 celerybeat-schedule
+staticfiles/
+htmlcov/
