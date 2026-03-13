@@ -135,35 +135,31 @@ jobs:
             # 3. Generate .env file
             # ============================
             echo "==> Generating .env file..."
-            cat > .env << 'ENVEOF'
-            SECRET_KEY=${SECRET_KEY}
-            DEBUG=${DEBUG}
-            ALLOWED_HOSTS=${ALLOWED_HOSTS}
-            DB_NAME=${DB_NAME}
-            DB_USER=${DB_USER}
-            DB_PASSWORD=${DB_PASSWORD}
-            DB_HOST=${DB_HOST}
-            DB_PORT=${DB_PORT}
-            CELERY_BROKER_URL=${CELERY_BROKER_URL}
-            CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-            CELERY_TASK_TIME_LIMIT=${CELERY_TASK_TIME_LIMIT}
-            CELERY_RESULT_EXPIRES=${CELERY_RESULT_EXPIRES}
-            EMAIL_BACKEND=${EMAIL_BACKEND}
-            EMAIL_HOST=${EMAIL_HOST}
-            EMAIL_PORT=${EMAIL_PORT}
-            EMAIL_USE_TLS=${EMAIL_USE_TLS}
-            EMAIL_HOST_USER=${EMAIL_HOST_USER}
-            EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
-            DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}
-            RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID}
-            RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}
-            RAZORPAY_WEBHOOK_SECRET=${RAZORPAY_WEBHOOK_SECRET}
-            GUNICORN_WORKERS=${GUNICORN_WORKERS}
-            GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT}
-            ENVEOF
-
-            # Remove leading whitespace from heredoc
-            sed -i 's/^[[:space:]]*//' .env
+            > .env
+            echo "SECRET_KEY=${SECRET_KEY}" >> .env
+            echo "DEBUG=${DEBUG}" >> .env
+            echo "ALLOWED_HOSTS=${ALLOWED_HOSTS}" >> .env
+            echo "DB_NAME=${DB_NAME}" >> .env
+            echo "DB_USER=${DB_USER}" >> .env
+            echo "DB_PASSWORD=${DB_PASSWORD}" >> .env
+            echo "DB_HOST=${DB_HOST}" >> .env
+            echo "DB_PORT=${DB_PORT}" >> .env
+            echo "CELERY_BROKER_URL=${CELERY_BROKER_URL}" >> .env
+            echo "CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}" >> .env
+            echo "CELERY_TASK_TIME_LIMIT=${CELERY_TASK_TIME_LIMIT}" >> .env
+            echo "CELERY_RESULT_EXPIRES=${CELERY_RESULT_EXPIRES}" >> .env
+            echo "EMAIL_BACKEND=${EMAIL_BACKEND}" >> .env
+            echo "EMAIL_HOST=${EMAIL_HOST}" >> .env
+            echo "EMAIL_PORT=${EMAIL_PORT}" >> .env
+            echo "EMAIL_USE_TLS=${EMAIL_USE_TLS}" >> .env
+            echo "EMAIL_HOST_USER=${EMAIL_HOST_USER}" >> .env
+            echo "EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}" >> .env
+            echo "DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}" >> .env
+            echo "RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID}" >> .env
+            echo "RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}" >> .env
+            echo "RAZORPAY_WEBHOOK_SECRET=${RAZORPAY_WEBHOOK_SECRET}" >> .env
+            echo "GUNICORN_WORKERS=${GUNICORN_WORKERS}" >> .env
+            echo "GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT}" >> .env
 
             # ============================
             # 4. Login to GHCR and pull
