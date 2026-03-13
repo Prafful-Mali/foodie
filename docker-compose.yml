@@ -158,6 +158,72 @@
 #   media_volume:
 
 
+#### without postgres #########
+
+# services:
+#   web:
+#     build: .
+#     container_name: foodie_web
+#     environment:
+#       - PATH=/opt/venv/bin:/usr/local/bin:/usr/bin:/bin
+#     command: >
+#       sh -c "
+#         python manage.py migrate &&
+#         python manage.py seed &&
+#         python manage.py runserver 0.0.0.0:8000
+#       "
+#     volumes:
+#       - .:/app
+#       - static_volume:/app/static
+#       - media_volume:/app/media
+#     ports:
+#       - "8000:8000"
+#     env_file:
+#       - .env
+#     depends_on:
+#       - redis          # ← removed postgres
+
+#   celery_worker:
+#     build: .
+#     container_name: foodie_celery_worker
+#     environment:
+#       - PATH=/opt/venv/bin:/usr/local/bin:/usr/bin:/bin
+#     command: python -m celery -A foodie worker -l info
+#     volumes:
+#       - .:/app
+#     env_file:
+#       - .env
+#     depends_on:
+#       - web
+#       - redis          # ← removed postgres
+
+#   celery_beat:
+#     build: .
+#     container_name: foodie_celery_beat
+#     environment:
+#       - PATH=/opt/venv/bin:/usr/local/bin:/usr/bin:/bin
+#     command: python -m celery -A foodie beat -l info
+#     volumes:
+#       - .:/app
+#     env_file:
+#       - .env
+#     depends_on:
+#       - web
+#       - redis          # ← removed postgres
+
+#   redis:
+#     image: redis:7
+#     container_name: foodie_redis
+#     restart: always
+#     ports:
+#       - "6379:6379"
+
+# volumes:
+#   static_volume:
+#   media_volume:
+#   # ← removed postgres_data volume
+
+###############################
 services:
   web:
     build: .
