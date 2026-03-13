@@ -22,11 +22,10 @@ ENV PATH="/root/.local/bin:$PATH"
 # Copy dependency files
 COPY pyproject.toml uv.lock ./
 
-# Create virtual environment and install dependencies
+# Create virtual environment directly at /opt/venv and install dependencies
+# Setting UV_PROJECT_ENVIRONMENT avoids moving the venv (which breaks shebangs)
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 RUN uv sync --frozen --no-dev
-
-# Move venv to a standard location
-RUN mv .venv /opt/venv
 
 # Verify installation
 RUN /opt/venv/bin/python -c "import django; print(f'✓ Django {django.__version__}')" && \
