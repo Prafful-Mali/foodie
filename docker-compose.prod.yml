@@ -5,6 +5,8 @@ services:
     restart: always
     env_file:
       - .env
+    environment:
+      - RUN_MIGRATIONS=true
     volumes:
       - static_volume:/app/staticfiles
       - media_volume:/app/media
@@ -21,7 +23,7 @@ services:
     image: ${DOCKER_IMAGE:-ghcr.io/prafful-mali/foodie:latest}
     container_name: foodie_celery_worker
     restart: always
-    entrypoint: []
+    entrypoint: ["/entrypoint.sh"]
     command: celery -A foodie worker -l info --concurrency=2
     env_file:
       - .env
@@ -35,7 +37,7 @@ services:
     image: ${DOCKER_IMAGE:-ghcr.io/prafful-mali/foodie:latest}
     container_name: foodie_celery_beat
     restart: always
-    entrypoint: []
+    entrypoint: ["/entrypoint.sh"]
     command: celery -A foodie beat -l info
     env_file:
       - .env
