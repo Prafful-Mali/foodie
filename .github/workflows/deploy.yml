@@ -65,9 +65,9 @@ jobs:
           # --- App Secrets ---
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           DEBUG: ${{ secrets.DEBUG }}
-          ALLOWED_HOSTS: foodie.isroot.in,${{ secrets.ALLOWED_HOSTS || '*' }}
-          CSRF_TRUSTED_ORIGINS: https://foodie.isroot.in
-          DOMAIN_NAME: foodie.isroot.in
+          ALLOWED_HOSTS: recipes.isroot.in,${{ secrets.ALLOWED_HOSTS || '*' }}
+          CSRF_TRUSTED_ORIGINS: https://recipes.isroot.in
+          DOMAIN_NAME: recipes.isroot.in
           CERTBOT_EMAIL: ${{ secrets.CERTBOT_EMAIL }}
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_USER: ${{ secrets.DB_USER }}
