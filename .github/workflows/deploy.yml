@@ -65,7 +65,10 @@ jobs:
           # --- App Secrets ---
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           DEBUG: ${{ secrets.DEBUG }}
-          ALLOWED_HOSTS: ${{ secrets.ALLOWED_HOSTS || '*' }}
+          ALLOWED_HOSTS: foodie.isroot.in,${{ secrets.ALLOWED_HOSTS || '*' }}
+          CSRF_TRUSTED_ORIGINS: https://foodie.isroot.in
+          DOMAIN_NAME: foodie.isroot.in
+          CERTBOT_EMAIL: ${{ secrets.CERTBOT_EMAIL }}
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_USER: ${{ secrets.DB_USER }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
@@ -85,14 +88,13 @@ jobs:
           RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
           RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
           RAZORPAY_WEBHOOK_SECRET: ${{ secrets.RAZORPAY_WEBHOOK_SECRET }}
-          NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
           GUNICORN_WORKERS: "3"
           GUNICORN_TIMEOUT: "120"
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: GHCR_TOKEN,GHCR_USER,DOCKER_IMAGE,SECRET_KEY,DEBUG,ALLOWED_HOSTS,DB_NAME,DB_USER,DB_PASSWORD,DB_HOST,DB_PORT,CELERY_BROKER_URL,CELERY_RESULT_BACKEND,CELERY_TASK_TIME_LIMIT,CELERY_RESULT_EXPIRES,EMAIL_BACKEND,EMAIL_HOST,EMAIL_PORT,EMAIL_USE_TLS,EMAIL_HOST_USER,EMAIL_HOST_PASSWORD,DEFAULT_FROM_EMAIL,RAZORPAY_KEY_ID,RAZORPAY_KEY_SECRET,RAZORPAY_WEBHOOK_SECRET,NGROK_AUTHTOKEN,GUNICORN_WORKERS,GUNICORN_TIMEOUT
+          envs: GHCR_TOKEN,GHCR_USER,DOCKER_IMAGE,SECRET_KEY,DEBUG,ALLOWED_HOSTS,CSRF_TRUSTED_ORIGINS,DOMAIN_NAME,CERTBOT_EMAIL,DB_NAME,DB_USER,DB_PASSWORD,DB_HOST,DB_PORT,CELERY_BROKER_URL,CELERY_RESULT_BACKEND,CELERY_TASK_TIME_LIMIT,CELERY_RESULT_EXPIRES,EMAIL_BACKEND,EMAIL_HOST,EMAIL_PORT,EMAIL_USE_TLS,EMAIL_HOST_USER,EMAIL_HOST_PASSWORD,DEFAULT_FROM_EMAIL,RAZORPAY_KEY_ID,RAZORPAY_KEY_SECRET,RAZORPAY_WEBHOOK_SECRET,GUNICORN_WORKERS,GUNICORN_TIMEOUT
           script: |
             set -e
 
@@ -159,7 +161,7 @@ jobs:
             echo "RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID}" >> .env
             echo "RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}" >> .env
             echo "RAZORPAY_WEBHOOK_SECRET=${RAZORPAY_WEBHOOK_SECRET}" >> .env
-            echo "NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}" >> .env
+            echo "CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS}" >> .env
             echo "GUNICORN_WORKERS=${GUNICORN_WORKERS}" >> .env
             echo "GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT}" >> .env
 
@@ -177,9 +179,43 @@ jobs:
             # ============================
             echo "==> Deploying..."
             sudo docker compose -f docker-compose.prod.yml down
-            sudo DOCKER_IMAGE="$DOCKER_IMAGE" docker compose -f docker-compose.prod.yml up -d
+
+            # Check if SSL certs already exist
+            CERT_PATH="/var/lib/docker/volumes/foodie_certbot_conf/_data/live/${DOMAIN_NAME}/fullchain.pem"
+
+            if sudo test -f "$CERT_PATH"; then
+              echo "==> SSL certificates found. Starting with HTTPS..."
+              sudo DOCKER_IMAGE="$DOCKER_IMAGE" docker compose -f docker-compose.prod.yml up -d
+            else
+              echo "==> No SSL certificates found. Provisioning..."
+
+              # Step 1: Swap to HTTP-only nginx config for ACME challenge
+              cp nginx/nginx.conf nginx/nginx.ssl.conf
+              cp nginx/nginx.http-only.conf nginx/nginx.conf
+              sudo DOCKER_IMAGE="$DOCKER_IMAGE" docker compose -f docker-compose.prod.yml up -d nginx web postgres redis
+
+              # Wait for nginx to be ready
+              sleep 5
+
+              # Step 2: Request certificate from Let's Encrypt
+              echo "==> Requesting SSL certificate for ${DOMAIN_NAME}..."
+              sudo docker compose -f docker-compose.prod.yml run --rm certbot certonly \
+                --webroot \
+                --webroot-path=/var/www/certbot \
+                --email "${CERTBOT_EMAIL}" \
+                --agree-tos \
+                --no-eff-email \
+                -d "${DOMAIN_NAME}"
+
+              # Step 3: Restore full SSL nginx config and restart everything
+              echo "==> SSL certificate obtained! Switching to HTTPS config..."
+              cp nginx/nginx.ssl.conf nginx/nginx.conf
+              rm -f nginx/nginx.ssl.conf
+              sudo docker compose -f docker-compose.prod.yml down
+              sudo DOCKER_IMAGE="$DOCKER_IMAGE" docker compose -f docker-compose.prod.yml up -d
+            fi
 
             # Cleanup old images
             sudo docker image prune -f
 
-            echo "==> Deployment complete!"
+            echo "==> Deployment complete! Site live at https://${DOMAIN_NAME}"

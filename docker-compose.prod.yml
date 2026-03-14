@@ -84,16 +84,23 @@ services:
     depends_on:
       - web
 
-  ngrok:
-    image: ngrok/ngrok:latest
-    restart: always
-    environment:
-      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
-    command:
-      - "http"
-      - "nginx:80"
-    depends_on:
-      - nginx
+  certbot:
+    image: certbot/certbot:latest
+    container_name: foodie_certbot
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt
+
+  # ngrok:
+  #   image: ngrok/ngrok:latest
+  #   restart: always
+  #   environment:
+  #     NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+  #   command:
+  #     - "http"
+  #     - "nginx:80"
+  #   depends_on:
+  #     - nginx
 
 volumes:
   postgres_data:
