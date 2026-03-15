@@ -212,15 +212,18 @@ class SubscriptionViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsSuperAdmin]
     queryset = Subscription.objects.all()
     serializer_class = SubscriptionSerializer
+    pagination_class = DefaultPagination
 
 
 class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsSuperAdmin]
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
+    pagination_class = DefaultPagination
 
 
 class WebhookViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsSuperAdmin]
     queryset = WebhookEvent.objects.all()
     serializer_class = WebhookEventSerializer
+    pagination_class = DefaultPagination
