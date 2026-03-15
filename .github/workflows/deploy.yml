@@ -11,7 +11,6 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: prafful-mali/foodie
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   test:
@@ -109,7 +108,7 @@ jobs:
             type=raw,value=latest
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v5
         with:
           context: .
           push: true
