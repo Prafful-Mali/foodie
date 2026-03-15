@@ -6,6 +6,7 @@ from recipes.models import Ingredient, RecipeIngredient
 
 fake = Faker()
 
+
 @pytest.mark.django_db
 class TestIngredientCRUDIntegration:
     # --- CREATE ---
@@ -42,6 +43,7 @@ class TestIngredientCRUDIntegration:
 
     def test_retrieve_nonexistent_ingredient(self, authenticated_client, tenant):
         import uuid
+
         response = authenticated_client.get(
             reverse("ingredient-detail", kwargs={"pk": uuid.uuid4()})
         )
@@ -80,8 +82,10 @@ class TestIngredientCRUDIntegration:
     def test_delete_ingredient_used_in_recipe(self, admin_client, tenant):
         ingredient = IngredientFactory(tenant=tenant)
         recipe = RecipeFactory(tenant=tenant, is_active=True)
-        RecipeIngredient.objects.create(tenant=tenant, recipe=recipe, ingredient=ingredient, quantity=1, unit="kg")
-        
+        RecipeIngredient.objects.create(
+            tenant=tenant, recipe=recipe, ingredient=ingredient, quantity=1, unit="kg"
+        )
+
         response = admin_client.delete(
             reverse("ingredient-detail", kwargs={"pk": ingredient.pk})
         )

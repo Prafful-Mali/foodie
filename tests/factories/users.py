@@ -4,6 +4,7 @@ from tests.factories.tenants import TenantFactory
 
 User = get_user_model()
 
+
 class UserFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = User
@@ -15,7 +16,7 @@ class UserFactory(factory.django.DjangoModelFactory):
     tenant = factory.SubFactory(TenantFactory)
     is_superadmin = False
     is_email_verified = True
-    
+
     @factory.post_generation
     def password(self, create, extracted, **kwargs):
         password = extracted if extracted else "testpass123"

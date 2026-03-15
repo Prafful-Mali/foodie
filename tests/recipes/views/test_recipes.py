@@ -6,6 +6,7 @@ from recipes.models import Recipe, RecipeIngredient
 
 fake = Faker()
 
+
 @pytest.mark.django_db
 class TestRecipeCRUDIntegration:
     # --- CREATE ---
@@ -24,22 +25,22 @@ class TestRecipeCRUDIntegration:
                 {
                     "ingredient_id": str(ingredient.id),
                     "quantity": "2.50",
-                    "unit": "cups"
+                    "unit": "cups",
                 }
-            ]
+            ],
         }
-        
+
         response = authenticated_client.post(
-            reverse("recipe-list"),
-            data=payload,
-            format="json"
+            reverse("recipe-list"), data=payload, format="json"
         )
         assert response.status_code == 201, response.data
         assert response.data["name"] == payload["name"]
         assert Recipe.objects.filter(name=payload["name"], tenant=tenant).exists()
         recipe = Recipe.objects.get(name=payload["name"], tenant=tenant)
         assert recipe.user == user
-        assert RecipeIngredient.objects.filter(recipe=recipe, ingredient=ingredient).exists()
+        assert RecipeIngredient.objects.filter(
+            recipe=recipe, ingredient=ingredient
+        ).exists()
 
     # --- LIST ---
     def test_list_recipes(self, authenticated_client, tenant, user):
@@ -53,7 +54,9 @@ class TestRecipeCRUDIntegration:
 
     def test_list_recipes_public(self, authenticated_client, tenant, user):
         RecipeFactory(tenant=tenant, user=user, sharing_status="PRIVATE")
-        RecipeFactory(tenant=tenant, sharing_status="PUBLIC")  # other user's public recipe
+        RecipeFactory(
+            tenant=tenant, sharing_status="PUBLIC"
+        )  # other user's public recipe
         response = authenticated_client.get(reverse("recipe-list"))
         assert response.status_code == 200, response.data
         assert len(response.data["results"]) == 2
@@ -70,6 +73,7 @@ class TestRecipeCRUDIntegration:
 
     def test_retrieve_nonexistent_recipe(self, authenticated_client):
         import uuid
+
         response = authenticated_client.get(
             reverse("recipe-detail", kwargs={"pk": uuid.uuid4()})
         )
@@ -82,7 +86,7 @@ class TestRecipeCRUDIntegration:
         response = authenticated_client.patch(
             reverse("recipe-detail", kwargs={"pk": recipe.pk}),
             data={"name": new_name},
-            format="json"
+            format="json",
         )
         assert response.status_code == 200, response.data
         recipe.refresh_from_db()
@@ -94,7 +98,7 @@ class TestRecipeCRUDIntegration:
         response = authenticated_client.patch(
             reverse("recipe-detail", kwargs={"pk": recipe.pk}),
             data={"name": fake.sentence(nb_words=3)[:100]},
-            format="json"
+            format="json",
         )
         # Should be forbidden to edit another user's recipe
         assert response.status_code == 403

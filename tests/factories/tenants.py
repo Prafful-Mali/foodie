@@ -1,6 +1,7 @@
 import factory
 from tenants.models import Tenant
 
+
 class TenantFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Tenant

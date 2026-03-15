@@ -21,3 +21,4 @@ media/
 celerybeat-schedule
 staticfiles/
 htmlcov/
+.coverage

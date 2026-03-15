@@ -6,6 +6,7 @@ from common.enums import SubscriptionStatus, PaymentStatus
 from django.utils import timezone
 from common.constants import LIFETIME_AMOUNT_PAISE
 
+
 class SubscriptionFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Subscription
@@ -25,7 +26,7 @@ class PaymentFactory(factory.django.DjangoModelFactory):
     tenant = factory.SubFactory(TenantFactory)
     subscription = factory.SubFactory(SubscriptionFactory)
     user = factory.SubFactory(UserFactory)
-    
+
     order_id = factory.Sequence(lambda n: f"order_{n}")
     payment_id = factory.Sequence(lambda n: f"pay_{n}")
     amount = LIFETIME_AMOUNT_PAISE

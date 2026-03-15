@@ -6,6 +6,7 @@ from recipes.models import Cuisine
 
 fake = Faker()
 
+
 @pytest.mark.django_db
 class TestCuisineCRUDIntegration:
     # --- CREATE ---
@@ -42,6 +43,7 @@ class TestCuisineCRUDIntegration:
 
     def test_retrieve_nonexistent_cuisine(self, authenticated_client, tenant):
         import uuid
+
         response = authenticated_client.get(
             reverse("cuisine-detail", kwargs={"pk": uuid.uuid4()})
         )

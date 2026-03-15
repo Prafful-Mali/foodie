@@ -7,11 +7,14 @@ from payments.models import Subscription, Payment
 
 from common.constants import LIFETIME_AMOUNT_PAISE
 
+
 @pytest.mark.django_db
 class TestPaymentIntegration:
 
-    @patch('razorpay.Client')
-    def test_create_order_as_tenant_admin(self, mock_razorpay, admin_client, tenant, user):
+    @patch("razorpay.Client")
+    def test_create_order_as_tenant_admin(
+        self, mock_razorpay, admin_client, tenant, user
+    ):
         # Mocking Razorpay client
         mock_client_instance = MagicMock()
         mock_razorpay.return_value = mock_client_instance
@@ -22,18 +25,20 @@ class TestPaymentIntegration:
         }
 
         response = admin_client.post(reverse("order-list"))
-        
+
         assert response.status_code == 201
         assert response.data["order_id"] == "order_test_123"
-        
+
         assert Subscription.objects.filter(tenant=tenant).exists()
         assert Payment.objects.filter(tenant=tenant, order_id="order_test_123").exists()
 
-    @patch('razorpay.Client')
-    def test_create_order_when_already_active(self, mock_razorpay, admin_client, tenant):
+    @patch("razorpay.Client")
+    def test_create_order_when_already_active(
+        self, mock_razorpay, admin_client, tenant
+    ):
         # Setup an active paid subscription
         SubscriptionFactory(tenant=tenant, status=SubscriptionStatus.PAID)
-        
+
         response = admin_client.post(reverse("order-list"))
         assert response.status_code == 400
         assert "already exists" in response.data["errors"]["detail"]
@@ -51,7 +56,7 @@ class TestPaymentIntegration:
         SubscriptionFactory(tenant=tenant, is_active=False)
         # Create for another tenant to test isolation
         SubscriptionFactory()
-        
+
         response = admin_client.get(reverse("order-list"))
         assert response.status_code == 200
         # Should only return the active subscription for this tenant
@@ -63,7 +68,7 @@ class TestPaymentIntegration:
         assert response.status_code == 200
         assert response.data["status"] == SubscriptionStatus.PENDING
 
-    @patch('razorpay.Client')
+    @patch("razorpay.Client")
     def test_verify_payment_success(self, mock_razorpay, admin_client, tenant):
         mock_client_instance = MagicMock()
         mock_razorpay.return_value = mock_client_instance
@@ -72,39 +77,44 @@ class TestPaymentIntegration:
 
         subscription = SubscriptionFactory(tenant=tenant)
         payment = PaymentFactory(
-            tenant=tenant, 
-            subscription=subscription, 
+            tenant=tenant,
+            subscription=subscription,
             order_id="order_123",
-            status=PaymentStatus.CREATED
+            status=PaymentStatus.CREATED,
         )
 
         payload = {
             "razorpay_order_id": "order_123",
             "razorpay_payment_id": "pay_123",
-            "razorpay_signature": "valid_signature"
+            "razorpay_signature": "valid_signature",
         }
 
         response = admin_client.post(reverse("payment-verify"), data=payload)
-        
+
         assert response.status_code == 200
         payment.refresh_from_db()
         assert payment.status == PaymentStatus.VERIFIED
         assert payment.payment_id == "pay_123"
         assert payment.verified_at is not None
 
-    @patch('razorpay.Client')
-    def test_verify_payment_invalid_signature(self, mock_razorpay, admin_client, tenant):
+    @patch("razorpay.Client")
+    def test_verify_payment_invalid_signature(
+        self, mock_razorpay, admin_client, tenant
+    ):
         import razorpay
+
         mock_client_instance = MagicMock()
         mock_razorpay.return_value = mock_client_instance
-        mock_client_instance.utility.verify_payment_signature.side_effect = razorpay.errors.SignatureVerificationError("Invalid signature")
+        mock_client_instance.utility.verify_payment_signature.side_effect = (
+            razorpay.errors.SignatureVerificationError("Invalid signature")
+        )
 
         payment = PaymentFactory(tenant=tenant, order_id="order_invalid")
 
         payload = {
             "razorpay_order_id": "order_invalid",
             "razorpay_payment_id": "pay_123",
-            "razorpay_signature": "invalid_signature"
+            "razorpay_signature": "invalid_signature",
         }
 
         response = admin_client.post(reverse("payment-verify"), data=payload)

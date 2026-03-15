@@ -28,7 +28,7 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 RUN uv sync --frozen --no-dev
 
 # Verify installation
-RUN /opt/venv/bin/python -c "import django; print(f'✓ Django {django.__version__}')" && \
+RUN /opt/venv/bin/python -c "import django; print(f'Django {django.__version__}')" && \
     /opt/venv/bin/celery --version | head -n 1 && \
     /opt/venv/bin/gunicorn --version
 

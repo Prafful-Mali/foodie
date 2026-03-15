@@ -100,9 +100,7 @@ class PaymentService:
             return False
 
     @transaction.atomic
-    def store_webhook(
-        self, event_id: str, event_type: str, payload: Dict
-    ):
+    def store_webhook(self, event_id: str, event_type: str, payload: Dict):
         payment_entity = payload.get("payload", {}).get("payment", {}).get("entity", {})
         order_id = payment_entity.get("order_id")
         payment_id = payment_entity.get("id")

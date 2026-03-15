@@ -53,6 +53,8 @@ class UserViewSet(viewsets.ViewSet):
         elif status_param == "deleted":
             users = users.filter(is_active=False)
 
+        users = users.order_by("-created_at")
+
         paginator = DefaultPagination()
         paginated_qs = paginator.paginate_queryset(users, request)
         serializer = UserSerializer(
