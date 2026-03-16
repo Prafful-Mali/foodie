@@ -2,7 +2,6 @@ import pytest
 from unittest.mock import patch
 from django.urls import reverse
 from faker import Faker
-from tests.factories.users import UserFactory
 from users.models import User
 
 fake = Faker()
@@ -97,4 +96,3 @@ class TestAuthAPIIntegration:
         payload = {"email": fake.email(), "first_name": "Test", "role": "USER"}
         response = authenticated_client.post(reverse("invite_user"), data=payload)
         assert response.status_code == 403
-

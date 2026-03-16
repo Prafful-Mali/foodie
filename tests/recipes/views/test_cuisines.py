@@ -40,7 +40,7 @@ class TestCuisineCRUDIntegration:
         assert response.data["id"] == str(cuisine.pk)
         assert response.data["name"] == cuisine.name
 
-    def test_retrieve_nonexistent_cuisine(self, authenticated_client, tenant):
+    def test_retrieve_nonexistent_cuisine(self, authenticated_client):
         import uuid
 
         response = authenticated_client.get(

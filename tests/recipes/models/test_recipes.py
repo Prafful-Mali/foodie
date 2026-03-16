@@ -9,6 +9,7 @@ from tests.factories.recipes import (
 )
 from tests.factories.tenants import TenantFactory
 
+
 @pytest.mark.django_db
 class TestCuisineModel:
     def test_cuisine_creation(self):
@@ -22,6 +23,7 @@ class TestCuisineModel:
         with pytest.raises(IntegrityError):
             CuisineFactory(tenant=tenant, name="Italian")
 
+
 @pytest.mark.django_db
 class TestIngredientModel:
     def test_ingredient_creation(self):
@@ -34,6 +36,7 @@ class TestIngredientModel:
         IngredientFactory(tenant=tenant, name="Tomato")
         with pytest.raises(IntegrityError):
             IngredientFactory(tenant=tenant, name="Tomato")
+
 
 @pytest.mark.django_db
 class TestRecipeModel:
@@ -49,11 +52,16 @@ class TestRecipeModel:
         with pytest.raises(IntegrityError):
             RecipeFactory(tenant=tenant, name="Pizza")
 
+
 @pytest.mark.django_db
 class TestRecipeIngredientModel:
     def test_recipe_ingredient_creation(self):
         recipe_ingredient = RecipeIngredientFactory()
-        assert str(recipe_ingredient) == f"{recipe_ingredient.recipe.name} - {recipe_ingredient.ingredient.name}"
+        assert (
+            str(recipe_ingredient)
+            == f"{recipe_ingredient.recipe.name} - {recipe_ingredient.ingredient.name}"
+        )
+
 
 @pytest.mark.django_db
 class TestRecipePictureModel:

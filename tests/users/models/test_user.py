@@ -3,6 +3,7 @@ from django.db import IntegrityError
 from tests.factories.users import UserFactory
 from tests.factories.tenants import TenantFactory
 
+
 @pytest.mark.django_db
 class TestUserModel:
     def test_user_creation(self):
@@ -23,5 +24,6 @@ class TestUserModel:
 
     def test_user_role_default(self):
         from common.enums import UserRole
+
         user = UserFactory()
         assert user.role == UserRole.USER

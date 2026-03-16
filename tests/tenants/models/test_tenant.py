@@ -1,6 +1,7 @@
 import pytest
 from tests.factories.tenants import TenantFactory
 
+
 @pytest.mark.django_db
 class TestTenantModel:
     def test_tenant_creation(self):

@@ -1,6 +1,6 @@
 import pytest
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from django.urls import reverse
 from tests.factories.payments import (
     PaymentFactory,
@@ -8,7 +8,7 @@ from tests.factories.payments import (
     WebhookEventFactory,
 )
 from common.enums import PaymentStatus, SubscriptionStatus
-from payments.models import Payment, Subscription, WebhookEvent
+from payments.models import WebhookEvent
 
 
 @pytest.mark.django_db
@@ -18,9 +18,7 @@ class TestWebhookIntegration:
     @patch("payments.views.process_webhook_task")
     def test_webhook_receive_success(self, mock_task, mock_razorpay, api_client):
         # Mocking razorpay signature validation
-        mock_client = MagicMock()
-        mock_razorpay.return_value = mock_client
-        mock_client.utility.verify_webhook_signature.return_value = True
+        mock_razorpay.return_value.utility.verify_webhook_signature.return_value = True
 
         payload = {
             "id": "evt_test123",
@@ -50,9 +48,7 @@ class TestWebhookIntegration:
     def test_webhook_invalid_signature(self, mock_razorpay, api_client):
         import razorpay
 
-        mock_client = MagicMock()
-        mock_razorpay.return_value = mock_client
-        mock_client.utility.verify_webhook_signature.side_effect = (
+        mock_razorpay.return_value.utility.verify_webhook_signature.side_effect = (
             razorpay.errors.SignatureVerificationError("Invalid sig")
         )
 

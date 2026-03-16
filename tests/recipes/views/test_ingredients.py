@@ -41,7 +41,7 @@ class TestIngredientCRUDIntegration:
         assert response.data["id"] == str(ingredient.pk)
         assert response.data["name"] == ingredient.name
 
-    def test_retrieve_nonexistent_ingredient(self, authenticated_client, tenant):
+    def test_retrieve_nonexistent_ingredient(self, authenticated_client):
         import uuid
 
         response = authenticated_client.get(
