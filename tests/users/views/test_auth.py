@@ -97,3 +97,4 @@ class TestAuthAPIIntegration:
         payload = {"email": fake.email(), "first_name": "Test", "role": "USER"}
         response = authenticated_client.post(reverse("invite_user"), data=payload)
         assert response.status_code == 403
+
