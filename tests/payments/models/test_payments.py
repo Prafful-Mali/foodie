@@ -1,6 +1,11 @@
 import pytest
-from tests.factories.payments import SubscriptionFactory, PaymentFactory, WebhookEventFactory
+from tests.factories.payments import (
+    SubscriptionFactory,
+    PaymentFactory,
+    WebhookEventFactory,
+)
 from common.enums import SubscriptionStatus, PaymentStatus
+
 
 @pytest.mark.django_db
 class TestSubscriptionModel:
@@ -8,7 +13,11 @@ class TestSubscriptionModel:
         subscription = SubscriptionFactory(amount=50000)
         assert subscription.amount == 50000
         assert subscription.status == SubscriptionStatus.PENDING
-        assert str(subscription) == f"Subscription({subscription.tenant.name}, {subscription.status})"
+        assert (
+            str(subscription)
+            == f"Subscription({subscription.tenant.name}, {subscription.status})"
+        )
+
 
 @pytest.mark.django_db
 class TestPaymentModel:
@@ -18,6 +27,7 @@ class TestPaymentModel:
         assert payment.order_id == "order_123"
         assert payment.status == PaymentStatus.CREATED
         assert str(payment) == f"Payment(order_123, {PaymentStatus.CREATED})"
+
 
 @pytest.mark.django_db
 class TestWebhookEventModel:

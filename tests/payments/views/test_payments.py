@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from django.urls import reverse
 from tests.factories.payments import SubscriptionFactory, PaymentFactory
 from common.enums import SubscriptionStatus, PaymentStatus
@@ -12,13 +12,9 @@ from common.constants import LIFETIME_AMOUNT_PAISE
 class TestPaymentIntegration:
 
     @patch("razorpay.Client")
-    def test_create_order_as_tenant_admin(
-        self, mock_razorpay, admin_client, tenant, user
-    ):
+    def test_create_order_as_tenant_admin(self, mock_razorpay, admin_client, tenant):
         # Mocking Razorpay client
-        mock_client_instance = MagicMock()
-        mock_razorpay.return_value = mock_client_instance
-        mock_client_instance.order.create.return_value = {
+        mock_razorpay.return_value.order.create.return_value = {
             "id": "order_test_123",
             "amount": LIFETIME_AMOUNT_PAISE,
             "currency": "INR",
@@ -32,10 +28,7 @@ class TestPaymentIntegration:
         assert Subscription.objects.filter(tenant=tenant).exists()
         assert Payment.objects.filter(tenant=tenant, order_id="order_test_123").exists()
 
-    @patch("razorpay.Client")
-    def test_create_order_when_already_active(
-        self, mock_razorpay, admin_client, tenant
-    ):
+    def test_create_order_when_already_active(self, admin_client, tenant):
         # Setup an active paid subscription
         SubscriptionFactory(tenant=tenant, status=SubscriptionStatus.PAID)
 
@@ -70,10 +63,8 @@ class TestPaymentIntegration:
 
     @patch("razorpay.Client")
     def test_verify_payment_success(self, mock_razorpay, admin_client, tenant):
-        mock_client_instance = MagicMock()
-        mock_razorpay.return_value = mock_client_instance
         # Don't raise error, means signature is valid
-        mock_client_instance.utility.verify_payment_signature.return_value = None
+        mock_razorpay.return_value.utility.verify_payment_signature.return_value = None
 
         subscription = SubscriptionFactory(tenant=tenant)
         payment = PaymentFactory(
@@ -103,13 +94,11 @@ class TestPaymentIntegration:
     ):
         import razorpay
 
-        mock_client_instance = MagicMock()
-        mock_razorpay.return_value = mock_client_instance
-        mock_client_instance.utility.verify_payment_signature.side_effect = (
+        mock_razorpay.return_value.utility.verify_payment_signature.side_effect = (
             razorpay.errors.SignatureVerificationError("Invalid signature")
         )
 
-        payment = PaymentFactory(tenant=tenant, order_id="order_invalid")
+        PaymentFactory(tenant=tenant, order_id="order_invalid")
 
         payload = {
             "razorpay_order_id": "order_invalid",

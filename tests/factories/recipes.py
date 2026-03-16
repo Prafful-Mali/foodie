@@ -28,7 +28,9 @@ class RecipeFactory(factory.django.DjangoModelFactory):
 
     tenant = factory.SubFactory(TenantFactory)
     user = factory.SubFactory(UserFactory)
-    cuisine = factory.SubFactory(CuisineFactory, tenant=factory.SelfAttribute("..tenant"))
+    cuisine = factory.SubFactory(
+        CuisineFactory, tenant=factory.SelfAttribute("..tenant")
+    )
     name = factory.Sequence(lambda n: f"Recipe {n}")
     description = factory.Faker("paragraph")
     preparation_steps = factory.Faker("text")
@@ -43,7 +45,9 @@ class RecipeIngredientFactory(factory.django.DjangoModelFactory):
 
     tenant = factory.SubFactory(TenantFactory)
     recipe = factory.SubFactory(RecipeFactory, tenant=factory.SelfAttribute("..tenant"))
-    ingredient = factory.SubFactory(IngredientFactory, tenant=factory.SelfAttribute("..tenant"))
+    ingredient = factory.SubFactory(
+        IngredientFactory, tenant=factory.SelfAttribute("..tenant")
+    )
     quantity = 1.0
     unit = "cup"
 
@@ -56,4 +60,3 @@ class RecipePictureFactory(factory.django.DjangoModelFactory):
     recipe = factory.SubFactory(RecipeFactory, tenant=factory.SelfAttribute("..tenant"))
     picture = factory.django.ImageField(color="blue")
     order = factory.Sequence(lambda n: n)
-
