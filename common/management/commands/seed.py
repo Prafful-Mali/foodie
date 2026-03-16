@@ -14,7 +14,11 @@ class Command(BaseCommand):
         password = os.getenv("SUPERADMIN_PASSWORD")
 
         if not email or not password:
-            self.stdout.write(self.style.ERROR("SUPERADMIN_EMAIL and SUPERADMIN_PASSWORD must be set in environment"))
+            self.stdout.write(
+                self.style.ERROR(
+                    "SUPERADMIN_EMAIL and SUPERADMIN_PASSWORD must be set in environment"
+                )
+            )
             return
 
         admin, created = User.objects.get_or_create(
@@ -34,7 +38,9 @@ class Command(BaseCommand):
         if created:
             admin.set_password(password)
             admin.save()
-            self.stdout.write(self.style.SUCCESS(f"Superadmin created with email: {email}"))
+            self.stdout.write(
+                self.style.SUCCESS(f"Superadmin created with email: {email}")
+            )
         else:
             self.stdout.write(f"Superadmin with email {email} already exists")
 
