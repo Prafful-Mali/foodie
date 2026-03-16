@@ -38,22 +38,39 @@ class UserViewSet(viewsets.ViewSet):
         return [permission() for permission in permission_classes]
 
     def get_queryset(self, request):
+        base_qs = User.objects.select_related("tenant")
         if request.user.is_superadmin:
-            return User.objects.filter(role=UserRole.ADMIN)
+            return base_qs.filter(role=UserRole.ADMIN)
         elif request.user.role == UserRole.ADMIN:
-            return User.objects.filter(tenant=request.user.tenant)
-        return User.objects.filter(id=request.user.id, is_active=True)
+            return base_qs.filter(tenant=request.user.tenant)
+        return base_qs.filter(id=request.user.id, is_active=True)
 
     def list(self, request):
-        users = self.get_queryset(request)
+        users = (
+            self.get_queryset(request)
+            .only(
+                "id",
+                "username",
+                "email",
+                "is_email_verified",
+                "first_name",
+                "last_name",
+                "role",
+                "tenant__id",
+                "tenant__name",
+                "is_active",
+                "created_at",
+                "updated_at",
+                "deleted_at",
+            )
+            .order_by("-created_at")
+        )
 
         status_param = request.query_params.get("status")
         if status_param == "active":
             users = users.filter(is_active=True)
         elif status_param == "deleted":
             users = users.filter(is_active=False)
-
-        users = users.order_by("-created_at")
 
         paginator = DefaultPagination()
         paginated_qs = paginator.paginate_queryset(users, request)
@@ -84,10 +101,11 @@ class UserViewSet(viewsets.ViewSet):
         )
 
     def retrieve(self, request, pk=None):
+        base_qs = User.objects.select_related("tenant")
         if request.user.role == UserRole.ADMIN or request.user.is_superadmin:
-            user = get_object_or_404(User, pk=pk)
+            user = get_object_or_404(base_qs, pk=pk)
         else:
-            user = get_object_or_404(User, pk=pk, is_active=True)
+            user = get_object_or_404(base_qs, pk=pk, is_active=True)
 
         self.check_object_permissions(request, user)
 

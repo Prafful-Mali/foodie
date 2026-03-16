@@ -145,7 +145,18 @@ class RecipeViewSet(viewsets.ViewSet):
 
     def partial_update(self, request, pk=None):
         tenant = request.tenant
-        recipe = get_object_or_404(Recipe, pk=pk, tenant=tenant, is_active=True)
+        qs = (
+            self.get_queryset(request)
+            .select_related("user", "cuisine")
+            .prefetch_related(
+                "recipe_ingredients__ingredient",
+                Prefetch(
+                    "recipe_pictures",
+                    queryset=RecipePicture.objects.filter(is_active=True),
+                ),
+            )
+        )
+        recipe = get_object_or_404(qs, pk=pk, tenant=tenant, is_active=True)
         self.check_object_permissions(request, recipe)
 
         serializer = RecipeSerializer(
