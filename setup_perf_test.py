@@ -12,7 +12,8 @@ django.setup()
 from tenants.models import Tenant
 from users.models import User
 from recipes.models import Cuisine, Ingredient, Recipe, RecipeIngredient
-from common.enums import UserRole
+from payments.models import Subscription, Payment
+from common.enums import UserRole, SubscriptionStatus, PaymentStatus
 from rest_framework_simplejwt.tokens import RefreshToken
 from faker import Faker
 
@@ -26,7 +27,7 @@ def setup_performance_test():
     tenant = Tenant.objects.create(name=tenant_name, is_premium=True)
     print(f"✅ Created Tenant: {tenant_name}")
 
-    # 2. Create Admin
+    # 2. Create Admin (used for Tenant Admin Token)
     admin_email = f"admin@{tenant_name.lower()}.com"
     admin = User.objects.create(
         email=admin_email,
@@ -34,7 +35,8 @@ def setup_performance_test():
         role=UserRole.ADMIN,
         tenant=tenant,
         is_email_verified=True,
-        is_active=True
+        is_active=True,
+        is_superadmin=False
     )
     admin.set_password("password123")
     admin.save()
@@ -82,14 +84,45 @@ def setup_performance_test():
                 unit="unit"
             )
 
-    # 6. Generate Token
-    refresh = RefreshToken.for_user(admin)
-    token = str(refresh.access_token)
+    # 6. Create Payments & Subscriptions
+    print("⏳ Seeding 20 Subscriptions & Payments...")
+    for _ in range(20):
+        sub = Subscription.objects.create(
+            tenant=tenant,
+            created_by=admin,
+            amount=49900,
+            status=SubscriptionStatus.PAID,
+            activated_at=timezone.now()
+        )
+        Payment.objects.create(
+            tenant=tenant,
+            subscription=sub,
+            user=admin,
+            order_id=f"order_{uuid.uuid4().hex[:8]}",
+            payment_id=f"pay_{uuid.uuid4().hex[:8]}",
+            amount=49900,
+            status=PaymentStatus.CAPTURED,
+            captured=True
+        )
+
+    # 7. Generate Tokens
+    # Token 1: Tenant Admin (for Recipes/Users)
+    tenant_admin_refresh = RefreshToken.for_user(admin)
+    tenant_admin_token = str(tenant_admin_refresh.access_token)
+
+    # Token 2: SuperAdmin (for global Payments)
+    try:
+        super_user = User.objects.get(email="praffulmali7@gmail.com")
+        super_refresh = RefreshToken.for_user(super_user)
+        super_token = str(super_refresh.access_token)
+    except User.DoesNotExist:
+        super_token = "NOT_FOUND"
     
     print("\n" + "="*50)
-    print(f"IMPORTANT: Use the following token for Locust:")
-    print(f"LOCUST_AUTH_TOKEN={token}")
-    print(f"TENANT_ID={tenant.id}")
+    print(f"FOR RECIPES/USERS (Tenant Admin):")
+    print(f"LOCUST_AUTH_TOKEN={tenant_admin_token}")
+    print("\nFOR GLOBAL PAYMENTS (SuperAdmin):")
+    print(f"LOCUST_SUPERADMIN_TOKEN={super_token}")
     print("="*50)
     print("\n✅ Setup Complete! Run Locust now.")
 
