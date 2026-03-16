@@ -69,9 +69,12 @@ INSTALLED_APPS = [
     "common",
     "tenants",
     "payments",
+    "silk",
 ]
 
 MIDDLEWARE = [
+    "silk.middleware.SilkyMiddleware",
+    "pyinstrument.middleware.ProfilerMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -263,3 +266,13 @@ LOGGING = {
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.Argon2PasswordHasher",
 ]
+
+# Pyinstrument settings
+# To profile a request, add '?profile' to the end of the URL
+PYINSTRUMENT_URL_PARAMETER = "profile"
+
+# Silk settings
+SILKY_PYTHON_PROFILER = False
+SILKY_INTERCEPT_PERCENT = 100
+SILKY_MAX_REQUEST_BODY_SIZE = 1024  # kb
+SILKY_MAX_RESPONSE_BODY_SIZE = 1024  # kb

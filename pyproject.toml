@@ -18,6 +18,8 @@ dependencies = [
     "gunicorn>=23.0.0",
     "newrelic>=12.0.0",
     "argon2-cffi==23.1.0",
+    "pyinstrument>=5.1.2",
+    "django-silk>=5.5.0",
 ]
 
 [dependency-groups]
