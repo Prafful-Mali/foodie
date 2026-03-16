@@ -67,7 +67,10 @@ class RecipeViewSet(viewsets.ViewSet):
                 "cooking_time",
                 "sharing_status",
                 "created_at",
+                "is_active",
+                "deleted_at",
                 "user__id",
+                "user__email",
                 "cuisine__id",
                 "cuisine__name",
             )
