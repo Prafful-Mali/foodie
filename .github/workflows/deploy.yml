@@ -157,8 +157,8 @@ jobs:
           RAZORPAY_WEBHOOK_SECRET: ${{ secrets.RAZORPAY_WEBHOOK_SECRET }}
           NEW_RELIC_LICENSE_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}
           NEW_RELIC_APP_NAME: ${{ secrets.NEW_RELIC_APP_NAME || 'foodie-prod' }}
-          GUNICORN_WORKERS: "3"
-          GUNICORN_TIMEOUT: "120"
+          GUNICORN_WORKERS: ${{ secrets.GUNICORN_WORKERS || '3' }}
+          GUNICORN_TIMEOUT: ${{ secrets.GUNICORN_TIMEOUT || '120' }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}

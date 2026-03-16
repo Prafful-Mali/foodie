@@ -72,7 +72,7 @@ class TestTenantCRUDIntegration:
         response = admin_client.get(reverse("tenant-detail", kwargs={"pk": tenant.pk}))
         assert response.status_code == 403
 
-    # --- PARTIAL UPDATE (PATCH) ---
+    # --- PARTIAL UPDATE ---
     def test_partial_update_tenant(self, superadmin_client):
         tenant = TenantFactory()
         new_name = fake.pystr(min_chars=10, max_chars=20)
@@ -109,7 +109,7 @@ class TestTenantCRUDIntegration:
             str(tenant.id), deleted_timestamp.isoformat()
         )
 
-    # --- DESTROY (DELETE) ---
+    # --- DESTROY ---
     @patch("tenants.views.soft_delete_tenant_related_data")
     def test_delete_tenant(self, mock_task, superadmin_client):
         tenant = TenantFactory()

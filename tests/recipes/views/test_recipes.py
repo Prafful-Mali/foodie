@@ -79,7 +79,7 @@ class TestRecipeCRUDIntegration:
         )
         assert response.status_code == 404
 
-    # --- PARTIAL UPDATE (PATCH) ---
+    # --- PARTIAL UPDATE ---
     def test_partial_update_recipe(self, authenticated_client, tenant, user):
         recipe = RecipeFactory(tenant=tenant, user=user)
         new_name = fake.pystr(min_chars=10, max_chars=20)
@@ -103,7 +103,7 @@ class TestRecipeCRUDIntegration:
         # Should be forbidden to edit another user's recipe
         assert response.status_code == 403
 
-    # --- DESTROY (DELETE) ---
+    # --- DESTROY ---
     def test_delete_recipe(self, authenticated_client, tenant, user):
         recipe = RecipeFactory(tenant=tenant, user=user)
         response = authenticated_client.delete(

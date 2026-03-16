@@ -50,10 +50,10 @@ def admin_client(api_client, admin_user, get_auth_headers):
 
 
 @pytest.fixture
-def superadmin_user(tenant):
+def superadmin_user():
     from common.enums import UserRole
 
-    return UserFactory(tenant=tenant, role=UserRole.SUPERADMIN, is_superadmin=True)
+    return UserFactory(tenant=None, role=UserRole.SUPERADMIN, is_superadmin=True)
 
 
 @pytest.fixture

@@ -28,7 +28,6 @@ class TestCuisineCRUDIntegration:
         CuisineFactory.create_batch(2)  # Different tenant
         response = authenticated_client.get(reverse("cuisine-list"))
         assert response.status_code == 200
-        # Check against paginated response
         assert len(response.data["results"]) == 3
 
     # --- RETRIEVE ---
@@ -49,7 +48,7 @@ class TestCuisineCRUDIntegration:
         )
         assert response.status_code == 404
 
-    # --- PARTIAL UPDATE (PATCH) ---
+    # --- PARTIAL UPDATE ---
     def test_partial_update_cuisine_as_admin(self, admin_client, tenant):
         cuisine = CuisineFactory(tenant=tenant)
         new_name = fake.word()
@@ -69,7 +68,7 @@ class TestCuisineCRUDIntegration:
         )
         assert response.status_code == 403
 
-    # --- DESTROY (DELETE) ---
+    # --- DESTROY ---
     def test_delete_cuisine_as_admin(self, admin_client, tenant):
         cuisine = CuisineFactory(tenant=tenant)
         response = admin_client.delete(

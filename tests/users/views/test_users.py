@@ -94,7 +94,7 @@ class TestUserCRUDIntegration:
         )
         assert response.status_code == 403
 
-    # --- UPDATE (PATCH) ---
+    # --- UPDATE ---
     def test_partial_update_self(self, authenticated_client, user):
         new_name = fake.first_name()
         response = authenticated_client.patch(

@@ -49,7 +49,7 @@ class TestIngredientCRUDIntegration:
         )
         assert response.status_code == 404
 
-    # --- PARTIAL UPDATE (PATCH) ---
+    # --- PARTIAL UPDATE ---
     def test_partial_update_ingredient_as_admin(self, admin_client, tenant):
         ingredient = IngredientFactory(tenant=tenant)
         new_name = fake.word()
@@ -69,7 +69,7 @@ class TestIngredientCRUDIntegration:
         )
         assert response.status_code == 403
 
-    # --- DESTROY (DELETE) ---
+    # --- DESTROY ---
     def test_delete_ingredient_as_admin(self, admin_client, tenant):
         ingredient = IngredientFactory(tenant=tenant)
         response = admin_client.delete(
