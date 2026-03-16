@@ -218,15 +218,19 @@ LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
+        "simple": {
+            "format": "[%(asctime)s] %(levelname)s %(message)s",
+            "datefmt": "%d/%b/%Y %H:%M:%S",
+        },
         "json": {
             "()": "pythonjsonlogger.json.JsonFormatter",
-            "format": "%(asctime)s %(levelname)s %(message)s",
+            "format": "%(asctime)s %(levelname)s %(message)s %(method)s %(path)s %(status_code)s %(duration_ms)s %(request_id)s %(user_id)s %(tenant_id)s %(client_ip)s",
         },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "json",
+            "formatter": "simple",
         },
         "request_file": {
             "class": "logging.handlers.RotatingFileHandler",
@@ -237,9 +241,19 @@ LOGGING = {
         },
     },
     "loggers": {
-        "django.request": {
+        "app.request": {
             "handlers": ["console", "request_file"],
             "level": "INFO",
+            "propagate": False,
+        },
+        "django.request": {
+            "handlers": ["console"],
+            "level": "ERROR",  # Only show critical errors, hide "Not Found" warnings
+            "propagate": False,
+        },
+        "django.server": {
+            "handlers": ["console"],
+            "level": "ERROR",  # Silence the standard runserver access logs
             "propagate": False,
         },
     },
