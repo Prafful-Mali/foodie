@@ -18,8 +18,6 @@ dependencies = [
     "gunicorn>=23.0.0",
     "newrelic>=12.0.0",
     "argon2-cffi==23.1.0",
-    "pyinstrument>=5.1.2",
-    "django-silk>=5.5.0",
 ]
 
 [dependency-groups]
@@ -32,4 +30,6 @@ dev = [
     "pytest-cov>=7.0.0",
     "pytest-django>=4.12.0",
     "pytest-factoryboy>=2.8.1",
+    "pyinstrument>=5.1.2",
+    "django-silk>=5.5.0",
 ]
