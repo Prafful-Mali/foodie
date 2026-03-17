@@ -16,14 +16,19 @@ class TenantMiddleware:
     def __call__(self, request):
         request.tenant = None
 
-        if "Authorization" in request.headers:
+        header = self.jwt_auth.get_header(request)
+        if header:
             try:
-                auth_result = self.jwt_auth.authenticate(request)
-                if auth_result is not None:
-                    user, _ = auth_result
-                    request.user = user
-                    request.tenant = getattr(user, "tenant", None)
-            except AuthenticationFailed:
+                raw_token = self.jwt_auth.get_raw_token(header)
+                validated_token = self.jwt_auth.get_validated_token(raw_token)
+                from users.models import User
+                user = User.objects.select_related("tenant").get(
+                    id=validated_token["user_id"]
+                )
+                request.user = user
+                request._user = user
+                request.tenant = getattr(user, "tenant", None)
+            except Exception:
                 pass
 
         if not hasattr(request, "user"):

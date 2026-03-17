@@ -253,8 +253,8 @@ class RecipeSerializer(serializers.ModelSerializer):
                 "Recipe name must contain only alphabets and spaces."
             )
 
-        tenant = request.tenant
-        queryset = Recipe.objects.filter(tenant=tenant, name=value, is_active=True)
+        tenant_id = request.tenant.id if request.tenant else None
+        queryset = Recipe.objects.filter(tenant_id=tenant_id, name=value, is_active=True)
 
         if self.instance:
             queryset = queryset.exclude(pk=self.instance.pk)
@@ -275,7 +275,7 @@ class RecipeSerializer(serializers.ModelSerializer):
             from common.constants import RECIPE_CAP
 
             current_count = Recipe.objects.filter(
-                tenant=request.tenant, is_active=True
+                tenant_id=request.tenant.id, is_active=True
             ).count()
 
             if current_count >= RECIPE_CAP:
