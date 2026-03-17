@@ -20,12 +20,12 @@ from faker import Faker
 fake = Faker()
 
 def setup_performance_test():
-    print("🚀 Setting up Performance Test Data...")
+    print("Setting up Performance Test Data...")
     
     # 1. Create Tenant
     tenant_name = f"Perf-Test-{uuid.uuid4().hex[:6]}"
     tenant = Tenant.objects.create(name=tenant_name, is_premium=True)
-    print(f"✅ Created Tenant: {tenant_name}")
+    print(f"Created Tenant: {tenant_name}")
 
     # 2. Create Admin (used for Tenant Admin Token)
     admin_email = f"admin@{tenant_name.lower()}.com"
@@ -40,10 +40,10 @@ def setup_performance_test():
     )
     admin.set_password("password123")
     admin.save()
-    print(f"✅ Created Admin: {admin_email}")
+    print(f"Created Admin: {admin_email}")
 
     # 3. Create Users
-    print("⏳ Seeding 10 Users...")
+    print("Seeding 10 Users...")
     for _ in range(10):
         User.objects.create(
             email=fake.email(),
@@ -85,7 +85,7 @@ def setup_performance_test():
             )
 
     # 6. Create Payments & Subscriptions
-    print("⏳ Seeding 20 Subscriptions & Payments...")
+    print(" Seeding 20 Subscriptions & Payments...")
     for _ in range(20):
         sub = Subscription.objects.create(
             tenant=tenant,
@@ -124,7 +124,7 @@ def setup_performance_test():
     print("\nFOR GLOBAL PAYMENTS (SuperAdmin):")
     print(f"LOCUST_SUPERADMIN_TOKEN={super_token}")
     print("="*50)
-    print("\n✅ Setup Complete! Run Locust now.")
+    print("\nSetup Complete! Run Locust now.")
 
 if __name__ == "__main__":
     setup_performance_test()
