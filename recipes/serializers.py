@@ -154,11 +154,14 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
-        if hasattr(instance, "recipe_pictures"):
+        if hasattr(instance, "_prefetched_objects_cache") and "recipe_pictures" in instance._prefetched_objects_cache:
+            active_pictures = instance._prefetched_objects_cache["recipe_pictures"]
+        else:
             active_pictures = instance.recipe_pictures.filter(is_active=True)
-            representation["recipe_pictures"] = RecipePictureSerializer(
-                active_pictures, many=True
-            ).data
+            
+        representation["recipe_pictures"] = RecipePictureSerializer(
+            active_pictures, many=True
+        ).data
         return representation
 
     def __init__(self, *args, **kwargs):
@@ -268,7 +271,7 @@ class RecipeSerializer(serializers.ModelSerializer):
         if not request or not request.tenant:
             raise serializers.ValidationError("User must belong to a tenant.")
 
-        if not request.tenant.is_premium:
+        if not self.instance and not request.tenant.is_premium:
             from common.constants import RECIPE_CAP
 
             current_count = Recipe.objects.filter(
