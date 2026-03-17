@@ -73,8 +73,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    "silk.middleware.SilkyMiddleware",
-    "pyinstrument.middleware.ProfilerMiddleware",
+    # "silk.middleware.SilkyMiddleware",
+    # "pyinstrument.middleware.ProfilerMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -275,7 +275,7 @@ PYINSTRUMENT_FILENAME = "{timestamp:.0f}_{path}_{total_time:.3f}s.{ext}"
 
 # Silk settings
 SILKY_PYTHON_PROFILER = False
-# SILKY_INTERCEPT_PERCENT = 0
-SILKY_INTERCEPT_PERCENT = 100
+SILKY_INTERCEPT_PERCENT = 0
+# SILKY_INTERCEPT_PERCENT = 100
 SILKY_MAX_REQUEST_BODY_SIZE = 1024
 SILKY_MAX_RESPONSE_BODY_SIZE = 1024
