@@ -105,26 +105,21 @@ def setup_performance_test():
             captured=True
         )
 
-    # 7. Generate Tokens
-    # Token 1: Tenant Admin (for Recipes/Users)
+    # 7. Generate Token
+    # Token 1: Tenant Admin (for Recipes/Users/Cuisines)
     tenant_admin_refresh = RefreshToken.for_user(admin)
     tenant_admin_token = str(tenant_admin_refresh.access_token)
-
-    # Token 2: SuperAdmin (for global Payments)
-    try:
-        super_user = User.objects.get(email="praffulmali7@gmail.com")
-        super_refresh = RefreshToken.for_user(super_user)
-        super_token = str(super_refresh.access_token)
-    except User.DoesNotExist:
-        super_token = "NOT_FOUND"
     
+    # Store token in a file for Locust to read automatically
+    with open(".perf_token", "w") as f:
+        f.write(tenant_admin_token)
+
     print("\n" + "="*50)
-    print(f"FOR RECIPES/USERS (Tenant Admin):")
-    print(f"LOCUST_AUTH_TOKEN={tenant_admin_token}")
-    print("\nFOR GLOBAL PAYMENTS (SuperAdmin):")
-    print(f"LOCUST_SUPERADMIN_TOKEN={super_token}")
+    print(f"STRESS TEST ADMIN TOKEN:")
+    print(f"{tenant_admin_token}")
     print("="*50)
-    print("\nSetup Complete! Run Locust now.")
+    print(f"\n✅ Token saved to .perf_token")
+    print("Setup Complete! Run Locust now.")
 
 if __name__ == "__main__":
     setup_performance_test()

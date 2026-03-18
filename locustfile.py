@@ -4,10 +4,15 @@ import uuid
 import string
 from locust import HttpUser, task, between
 
-# --- HARDCODE TOKENS HERE ---
-# Paste your tokens here so you can just run 'locust'
-AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzczNzQ4NTQ1LCJpYXQiOjE3NzM3NDQ5NDUsImp0aSI6IjRmMzczYTQ3OTlhZjRlZDM4MjM5NzcwNGFiMWJmYzMyIiwidXNlcl9pZCI6Ijc3N2E3YThhLTY4NjQtNDVjMS05NzE3LTE5OTRkZWJiNTJiNyJ9.Cfj_uTRpwXfKqa8KIlu2yG7BUFKCLeXk6M4hmraNuME"
-SUPER_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzczNzQ4NTQ1LCJpYXQiOjE3NzM3NDQ5NDUsImp0aSI6IjA3YmMyNTU4MjFmZjQ1MzNiMjk3ODNiNzAyOGUzZmNmIiwidXNlcl9pZCI6ImRlZTQ2YjE1LTk2YTgtNDk5YS1iYWY4LTkzOGI3NjNkYmMwYSJ9.RZ0-Dw1YUBGvkFEs-JyciNqifKhYGDKIcKj8tQiWufI"
+# --- AUTO-LOAD AUTH TOKEN ---
+def get_token():
+    try:
+        with open(".perf_token", "r") as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return os.getenv("LOCUST_AUTH_TOKEN", "PASTE_TENANT_ADMIN_TOKEN_HERE")
+
+AUTH_TOKEN = get_token()
 # ----------------------------
 
 class FoodieUser(HttpUser):
@@ -15,17 +20,12 @@ class FoodieUser(HttpUser):
     
     def on_start(self):
         """Called when a virtual user starts."""
-        self.auth_token = AUTH_TOKEN if AUTH_TOKEN != "PASTE_TENANT_ADMIN_TOKEN_HERE" else os.getenv("LOCUST_AUTH_TOKEN")
-        self.super_token = SUPER_TOKEN if SUPER_TOKEN != "PASTE_SUPERADMIN_TOKEN_HERE" else os.getenv("LOCUST_SUPERADMIN_TOKEN")
+        self.auth_token = AUTH_TOKEN
         
         self.headers = {
             "Authorization": f"Bearer {self.auth_token}",
             "Content-Type": "application/json"
         }
-        self.super_headers = {
-            "Authorization": f"Bearer {self.super_token}",
-            "Content-Type": "application/json"
-        } if self.super_token else self.headers
 
         self.cuisine_ids = []
         self.fetch_initial_data()
