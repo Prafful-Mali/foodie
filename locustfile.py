@@ -4,7 +4,6 @@ import uuid
 import string
 from locust import HttpUser, task, between
 
-# --- AUTO-LOAD AUTH TOKEN ---
 def get_token():
     try:
         with open(".perf_token", "r") as f:
@@ -13,7 +12,6 @@ def get_token():
         return os.getenv("LOCUST_AUTH_TOKEN", "PASTE_TENANT_ADMIN_TOKEN_HERE")
 
 AUTH_TOKEN = get_token()
-# ----------------------------
 
 class FoodieUser(HttpUser):
     wait_time = between(1, 4)
@@ -73,7 +71,7 @@ class FoodieUser(HttpUser):
             if response.status_code != 200:
                 response.failure(f"Failed to patch cuisine: {response.status_code} - {response.text}")
 
-    @task(5)
+    @task(3)
     def view_recipes(self):
         """Test Read performance (GET) for Recipes."""
         self.client.get("/api/v1/recipes/", headers=self.headers, name="Read: List Recipes")

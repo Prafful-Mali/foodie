@@ -23,7 +23,6 @@ ENV PATH="/root/.local/bin:$PATH"
 COPY pyproject.toml uv.lock ./
 
 # Create virtual environment directly at /opt/venv and install dependencies
-# Setting UV_PROJECT_ENVIRONMENT avoids moving the venv (which breaks shebangs)
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 RUN uv sync --frozen --no-dev
 
