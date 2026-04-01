@@ -16,14 +16,19 @@ class TenantMiddleware:
     def __call__(self, request):
         request.tenant = None
 
-        if "Authorization" in request.headers:
+        header = self.jwt_auth.get_header(request)
+        if header:
             try:
-                auth_result = self.jwt_auth.authenticate(request)
-                if auth_result is not None:
-                    user, _ = auth_result
-                    request.user = user
-                    request.tenant = getattr(user, "tenant", None)
-            except AuthenticationFailed:
+                raw_token = self.jwt_auth.get_raw_token(header)
+                validated_token = self.jwt_auth.get_validated_token(raw_token)
+                from users.models import User
+                user = User.objects.select_related("tenant").get(
+                    id=validated_token["user_id"]
+                )
+                request.user = user
+                request._user = user
+                request.tenant = getattr(user, "tenant", None)
+            except Exception:
                 pass
 
         if not hasattr(request, "user"):
@@ -37,7 +42,7 @@ class RequestLoggingMiddleware:
 
     def __init__(self, get_response):
         self.get_response = get_response
-        self.logger = logging.getLogger("django.request")
+        self.logger = logging.getLogger("app.request")
 
     def __call__(self, request):
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
@@ -65,6 +70,10 @@ class RequestLoggingMiddleware:
         return response
 
     def log_request(self, request, response, duration):
+        # Skip logging for static and media files to reduce noise
+        if request.path.startswith(("/static/", "/media/")):
+            return
+
         user = getattr(request, "user", None)
         tenant = getattr(request, "tenant", None)
 
@@ -83,14 +92,14 @@ class RequestLoggingMiddleware:
             "user_agent": request.META.get("HTTP_USER_AGENT", ""),
         }
 
-        log_json = json.dumps(log_data)
+        message = f"{request.method} {request.path} ({response.status_code})"
 
         if response.status_code >= 500:
-            self.logger.error(log_json)
+            self.logger.error(message, extra=log_data)
         elif response.status_code >= 400:
-            self.logger.warning(log_json)
+            self.logger.warning(message, extra=log_data)
         else:
-            self.logger.info(log_json)
+            self.logger.info(message, extra=log_data)
 
     def get_client_ip(self, request):
         x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")

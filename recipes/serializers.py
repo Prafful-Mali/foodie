@@ -154,11 +154,14 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
-        if hasattr(instance, "recipe_pictures"):
+        if hasattr(instance, "_prefetched_objects_cache") and "recipe_pictures" in instance._prefetched_objects_cache:
+            active_pictures = instance._prefetched_objects_cache["recipe_pictures"]
+        else:
             active_pictures = instance.recipe_pictures.filter(is_active=True)
-            representation["recipe_pictures"] = RecipePictureSerializer(
-                active_pictures, many=True
-            ).data
+            
+        representation["recipe_pictures"] = RecipePictureSerializer(
+            active_pictures, many=True
+        ).data
         return representation
 
     def __init__(self, *args, **kwargs):
@@ -250,8 +253,8 @@ class RecipeSerializer(serializers.ModelSerializer):
                 "Recipe name must contain only alphabets and spaces."
             )
 
-        tenant = request.tenant
-        queryset = Recipe.objects.filter(tenant=tenant, name=value, is_active=True)
+        tenant_id = request.tenant.id if request.tenant else None
+        queryset = Recipe.objects.filter(tenant_id=tenant_id, name=value, is_active=True)
 
         if self.instance:
             queryset = queryset.exclude(pk=self.instance.pk)
@@ -268,11 +271,11 @@ class RecipeSerializer(serializers.ModelSerializer):
         if not request or not request.tenant:
             raise serializers.ValidationError("User must belong to a tenant.")
 
-        if not request.tenant.is_premium:
+        if not self.instance and not request.tenant.is_premium:
             from common.constants import RECIPE_CAP
 
             current_count = Recipe.objects.filter(
-                tenant=request.tenant, is_active=True
+                tenant_id=request.tenant.id, is_active=True
             ).count()
 
             if current_count >= RECIPE_CAP:
@@ -290,19 +293,22 @@ class RecipeSerializer(serializers.ModelSerializer):
         tenant = request.tenant
 
         if cuisine_id:
-            validated_data["cuisine"] = Cuisine.objects.get(
-                id=cuisine_id, tenant=tenant
-            )
+            validated_data["cuisine_id"] = cuisine_id
 
         validated_data["tenant"] = tenant
         recipe = Recipe.objects.create(**validated_data)
 
-        for ingredient_data in recipe_ingredients_data:
-            ingredient_id = ingredient_data.pop("ingredient_id")
-            ingredient = Ingredient.objects.get(id=ingredient_id, tenant=tenant)
-            RecipeIngredient.objects.create(
-                recipe=recipe, ingredient=ingredient, tenant=tenant, **ingredient_data
-            )
+        if recipe_ingredients_data:
+            recipe_ingredients = [
+                RecipeIngredient(
+                    recipe=recipe,
+                    ingredient_id=ingredient_data.pop("ingredient_id"),
+                    tenant=tenant,
+                    **ingredient_data,
+                )
+                for ingredient_data in recipe_ingredients_data
+            ]
+            RecipeIngredient.objects.bulk_create(recipe_ingredients)
 
         files = request.FILES.getlist("recipe_pictures")
         for idx, file in enumerate(files):
@@ -322,10 +328,7 @@ class RecipeSerializer(serializers.ModelSerializer):
         tenant = request.tenant
 
         if "cuisine_id" in self.initial_data:
-            if cuisine_id:
-                instance.cuisine = Cuisine.objects.get(id=cuisine_id, tenant=tenant)
-            else:
-                instance.cuisine = None
+            instance.cuisine_id = cuisine_id
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -335,15 +338,16 @@ class RecipeSerializer(serializers.ModelSerializer):
         if recipe_ingredients_data is not None:
             instance.recipe_ingredients.all().delete()
 
-            for ingredient_data in recipe_ingredients_data:
-                ingredient_id = ingredient_data.pop("ingredient_id")
-                ingredient = Ingredient.objects.get(id=ingredient_id, tenant=tenant)
-                RecipeIngredient.objects.create(
+            recipe_ingredients = [
+                RecipeIngredient(
                     recipe=instance,
-                    ingredient=ingredient,
+                    ingredient_id=ingredient_data.pop("ingredient_id"),
                     tenant=tenant,
                     **ingredient_data,
                 )
+                for ingredient_data in recipe_ingredients_data
+            ]
+            RecipeIngredient.objects.bulk_create(recipe_ingredients)
 
         indices = set()
         for key in request.data:

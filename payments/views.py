@@ -30,7 +30,9 @@ class TenantOrderViewSet(viewsets.ViewSet):
         return [IsTenantAdmin()]
 
     def list(self, request):
-        qs = Subscription.objects.filter(tenant=request.tenant, is_active=True)
+        qs = Subscription.objects.select_related("created_by").filter(
+            tenant=request.tenant, is_active=True
+        )
         paginator = DefaultPagination()
         paginated = paginator.paginate_queryset(qs, request)
         serializer = SubscriptionSerializer(paginated, many=True)
@@ -210,17 +212,20 @@ def payment_callback(request):
 
 class SubscriptionViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsSuperAdmin]
-    queryset = Subscription.objects.all()
+    queryset = Subscription.objects.select_related("created_by", "tenant").all()
     serializer_class = SubscriptionSerializer
+    pagination_class = DefaultPagination
 
 
 class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsSuperAdmin]
-    queryset = Payment.objects.all()
+    queryset = Payment.objects.select_related("user", "tenant", "subscription").all()
     serializer_class = PaymentSerializer
+    pagination_class = DefaultPagination
 
 
 class WebhookViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsSuperAdmin]
     queryset = WebhookEvent.objects.all()
     serializer_class = WebhookEventSerializer
+    pagination_class = DefaultPagination
