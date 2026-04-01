@@ -40,8 +40,18 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
 
+# HTTPS / Proxy settings
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+CSRF_TRUSTED_ORIGINS = os.getenv(
+    "CSRF_TRUSTED_ORIGINS", "https://recipes.isroot.in"
+).split(",")
+
+# Production cookie security (only when not DEBUG)
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 # Application definition
 
@@ -59,9 +69,12 @@ INSTALLED_APPS = [
     "common",
     "tenants",
     "payments",
+    # "silk",
 ]
 
 MIDDLEWARE = [
+    # "silk.middleware.SilkyMiddleware",
+    # "pyinstrument.middleware.ProfilerMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -102,7 +115,7 @@ DATABASES = {
         "NAME": os.getenv("DB_NAME"),
         "USER": os.getenv("DB_USER"),
         "PASSWORD": os.getenv("DB_PASSWORD"),
-        "HOST": os.getenv("DB_HOST"),
+        "HOST": os.getenv("DB_HOST", "localhost"),
         "PORT": os.getenv("DB_PORT"),
     }
 }
@@ -142,6 +155,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
@@ -165,7 +179,6 @@ CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND")
 CELERY_TASK_TIME_LIMIT = int(os.getenv("CELERY_TASK_TIME_LIMIT"))
 CELERY_RESULT_EXPIRES = int(os.getenv("CELERY_RESULT_EXPIRES"))
 
-CELERY_BROKER_URL = "redis://localhost:6379/0"
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 
@@ -191,7 +204,7 @@ DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL")
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379/1",
+        "LOCATION": os.getenv("CELERY_RESULT_BACKEND"),
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         },
@@ -204,19 +217,27 @@ RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
 RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET")
 
 
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.Argon2PasswordHasher",
+]
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
+        "simple": {
+            "format": "[%(asctime)s] %(levelname)s %(message)s",
+            "datefmt": "%d/%b/%Y %H:%M:%S",
+        },
         "json": {
-            "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
-            "format": "%(asctime)s %(levelname)s %(message)s",
+            "()": "pythonjsonlogger.json.JsonFormatter",
+            "format": "%(asctime)s %(levelname)s %(message)s %(method)s %(path)s %(status_code)s %(duration_ms)s %(request_id)s %(user_id)s %(tenant_id)s %(client_ip)s",
         },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "json",
+            "formatter": "simple",
         },
         "request_file": {
             "class": "logging.handlers.RotatingFileHandler",
@@ -227,10 +248,34 @@ LOGGING = {
         },
     },
     "loggers": {
-        "django.request": {
+        "app.request": {
             "handlers": ["console", "request_file"],
             "level": "INFO",
             "propagate": False,
         },
+        "django.request": {
+            "handlers": ["console"],
+            "level": "ERROR",  # Only show critical errors, hide "Not Found" warnings
+            "propagate": False,
+        },
+        "django.server": {
+            "handlers": ["console"],
+            "level": "ERROR",  # Silence the standard runserver access logs
+            "propagate": False,
+        },
     },
 }
+
+
+# Pyinstrument settings
+# To profile a request, add '?profile' to the end of the URL
+# PYINSTRUMENT_URL_ARGUMENT = "profile"
+# PYINSTRUMENT_PROFILE_DIR = "profiles"
+# PYINSTRUMENT_FILENAME = "{timestamp:.0f}_{path}_{total_time:.3f}s.{ext}"
+
+# Silk settings
+# SILKY_INTERCEPT_PERCENT = 0
+# SILKY_PYTHON_PROFILER = False
+# SILKY_INTERCEPT_PERCENT = 100
+# SILKY_MAX_REQUEST_BODY_SIZE = 1024
+# SILKY_MAX_RESPONSE_BODY_SIZE = 1024

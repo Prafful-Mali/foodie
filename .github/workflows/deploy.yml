@@ -1,0 +1,297 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [feature/cicd]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: prafful-mali/foodie
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: foodie_test
+          POSTGRES_USER: foodie_user
+          POSTGRES_PASSWORD: foodie_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Create logs directory
+        run: mkdir -p logs
+
+      - name: Run tests
+        env:
+          SECRET_KEY: "dummy_secret_key_for_testing"
+          DEBUG: "True"
+          DB_NAME: foodie_test
+          DB_USER: foodie_user
+          DB_PASSWORD: foodie_password
+          DB_HOST: localhost
+          DB_PORT: 5432
+          CELERY_BROKER_URL: redis://localhost:6379/0
+          CELERY_RESULT_BACKEND: redis://localhost:6379/1
+          CELERY_TASK_TIME_LIMIT: "300"
+          CELERY_RESULT_EXPIRES: "3600"
+          EMAIL_PORT: "587"
+        run: uv run pytest
+
+  build-and-push:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push'
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+          DOCKER_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          # --- App Secrets ---
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          DEBUG: ${{ secrets.DEBUG }}
+          ALLOWED_HOSTS: recipes.isroot.in,${{ secrets.ALLOWED_HOSTS || '*' }}
+          CSRF_TRUSTED_ORIGINS: https://recipes.isroot.in
+          DOMAIN_NAME: recipes.isroot.in
+          CERTBOT_EMAIL: ${{ secrets.CERTBOT_EMAIL }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_HOST: ${{ secrets.DB_HOST || 'postgres' }}
+          DB_PORT: ${{ secrets.DB_PORT || '5432' }}
+          CELERY_BROKER_URL: ${{ secrets.CELERY_BROKER_URL || 'redis://redis:6379/0' }}
+          CELERY_RESULT_BACKEND: ${{ secrets.CELERY_RESULT_BACKEND || 'redis://redis:6379/1' }}
+          CELERY_TASK_TIME_LIMIT: ${{ secrets.CELERY_TASK_TIME_LIMIT }}
+          CELERY_RESULT_EXPIRES: ${{ secrets.CELERY_RESULT_EXPIRES }}
+          EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
+          EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
+          EMAIL_PORT: ${{ secrets.EMAIL_PORT }}
+          EMAIL_USE_TLS: ${{ secrets.EMAIL_USE_TLS }}
+          EMAIL_HOST_USER: ${{ secrets.EMAIL_HOST_USER }}
+          EMAIL_HOST_PASSWORD: ${{ secrets.EMAIL_HOST_PASSWORD }}
+          DEFAULT_FROM_EMAIL: ${{ secrets.DEFAULT_FROM_EMAIL }}
+          RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
+          RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
+          RAZORPAY_WEBHOOK_SECRET: ${{ secrets.RAZORPAY_WEBHOOK_SECRET }}
+          NEW_RELIC_LICENSE_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}
+          NEW_RELIC_APP_NAME: ${{ secrets.NEW_RELIC_APP_NAME || 'foodie-prod' }}
+          GUNICORN_WORKERS: ${{ secrets.GUNICORN_WORKERS || '3' }}
+          GUNICORN_TIMEOUT: ${{ secrets.GUNICORN_TIMEOUT || '120' }}
+          SUPERADMIN_EMAIL: ${{ secrets.SUPERADMIN_EMAIL }}
+          SUPERADMIN_PASSWORD: ${{ secrets.SUPERADMIN_PASSWORD }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: GHCR_TOKEN,GHCR_USER,DOCKER_IMAGE,SECRET_KEY,DEBUG,ALLOWED_HOSTS,CSRF_TRUSTED_ORIGINS,DOMAIN_NAME,CERTBOT_EMAIL,DB_NAME,DB_USER,DB_PASSWORD,DB_HOST,DB_PORT,CELERY_BROKER_URL,CELERY_RESULT_BACKEND,CELERY_TASK_TIME_LIMIT,CELERY_RESULT_EXPIRES,EMAIL_BACKEND,EMAIL_HOST,EMAIL_PORT,EMAIL_USE_TLS,EMAIL_HOST_USER,EMAIL_HOST_PASSWORD,DEFAULT_FROM_EMAIL,RAZORPAY_KEY_ID,RAZORPAY_KEY_SECRET,RAZORPAY_WEBHOOK_SECRET,NEW_RELIC_LICENSE_KEY,NEW_RELIC_APP_NAME,GUNICORN_WORKERS,GUNICORN_TIMEOUT,SUPERADMIN_EMAIL,SUPERADMIN_PASSWORD
+          script: |
+            set -e
+
+            APP_DIR="/home/${{ secrets.EC2_USER }}/foodie"
+            REPO_URL="https://github.com/${{ github.repository }}.git"
+
+            # ============================
+            # 1. Bootstrap: Install Docker
+            # ============================
+            if ! command -v docker &> /dev/null; then
+              echo "==> Installing Docker..."
+              sudo apt-get update
+              sudo apt-get install -y ca-certificates curl gnupg
+              sudo install -m 0755 -d /etc/apt/keyrings
+              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+              sudo chmod a+r /etc/apt/keyrings/docker.gpg
+              echo \
+                "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+                $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+                sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+              sudo apt-get update
+              sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+              sudo usermod -aG docker $USER
+              echo "==> Docker installed successfully"
+            fi
+
+            # ============================
+            # 2. Clone or pull repository
+            # ============================
+            if [ ! -d "$APP_DIR" ]; then
+              echo "==> Cloning repository..."
+              git clone "$REPO_URL" "$APP_DIR"
+            fi
+
+            cd "$APP_DIR"
+            git fetch origin feature/cicd
+            git checkout feature/cicd
+            git reset --hard origin/feature/cicd
+
+            # ============================
+            # 3. Generate .env file
+            # ============================
+            echo "==> Generating .env file..."
+            > .env
+            echo "SECRET_KEY=${SECRET_KEY}" >> .env
+            echo "DEBUG=${DEBUG}" >> .env
+            echo "ALLOWED_HOSTS=${ALLOWED_HOSTS}" >> .env
+            echo "DB_NAME=${DB_NAME}" >> .env
+            echo "DB_USER=${DB_USER}" >> .env
+            echo "DB_PASSWORD=${DB_PASSWORD}" >> .env
+            echo "DB_HOST=${DB_HOST}" >> .env
+            echo "DB_PORT=${DB_PORT}" >> .env
+            echo "CELERY_BROKER_URL=${CELERY_BROKER_URL}" >> .env
+            echo "CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}" >> .env
+            echo "CELERY_TASK_TIME_LIMIT=${CELERY_TASK_TIME_LIMIT}" >> .env
+            echo "CELERY_RESULT_EXPIRES=${CELERY_RESULT_EXPIRES}" >> .env
+            echo "EMAIL_BACKEND=${EMAIL_BACKEND}" >> .env
+            echo "EMAIL_HOST=${EMAIL_HOST}" >> .env
+            echo "EMAIL_PORT=${EMAIL_PORT}" >> .env
+            echo "EMAIL_USE_TLS=${EMAIL_USE_TLS}" >> .env
+            echo "EMAIL_HOST_USER=${EMAIL_HOST_USER}" >> .env
+            echo "EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}" >> .env
+            echo "DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}" >> .env
+            echo "RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID}" >> .env
+            echo "RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}" >> .env
+            echo "RAZORPAY_WEBHOOK_SECRET=${RAZORPAY_WEBHOOK_SECRET}" >> .env
+            echo "NEW_RELIC_LICENSE_KEY=${NEW_RELIC_LICENSE_KEY}" >> .env
+            echo "NEW_RELIC_APP_NAME=${NEW_RELIC_APP_NAME}" >> .env
+            echo "CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS}" >> .env
+            echo "GUNICORN_WORKERS=${GUNICORN_WORKERS}" >> .env
+            echo "GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT}" >> .env
+            echo "SUPERADMIN_EMAIL=${SUPERADMIN_EMAIL}" >> .env
+            echo "SUPERADMIN_PASSWORD=${SUPERADMIN_PASSWORD}" >> .env
+
+            # ============================
+            # 4. Login to GHCR and pull
+            # ============================
+            echo "==> Logging in to GHCR..."
+            echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+            echo "==> Pulling latest image..."
+            sudo docker pull "$DOCKER_IMAGE"
+
+            # ============================
+            # 5. Deploy with Docker Compose
+            # ============================
+            echo "==> Deploying..."
+            sudo docker compose -f docker-compose.prod.yml down
+
+            # Check if SSL certs already exist
+            CERT_PATH="/var/lib/docker/volumes/foodie_certbot_conf/_data/live/${DOMAIN_NAME}/fullchain.pem"
+
+            if sudo test -f "$CERT_PATH"; then
+              echo "==> SSL certificates found. Starting with HTTPS..."
+              sudo DOCKER_IMAGE="$DOCKER_IMAGE" docker compose -f docker-compose.prod.yml up -d
+            else
+              echo "==> No SSL certificates found. Provisioning..."
+
+              # Step 1: Swap to HTTP-only nginx config for ACME challenge
+              cp nginx/nginx.conf nginx/nginx.ssl.conf
+              cp nginx/nginx.http-only.conf nginx/nginx.conf
+              sudo DOCKER_IMAGE="$DOCKER_IMAGE" docker compose -f docker-compose.prod.yml up -d nginx web postgres redis
+
+              # Wait for nginx to be ready
+              sleep 5
+
+              # Step 2: Request certificate from Let's Encrypt
+              echo "==> Requesting SSL certificate for ${DOMAIN_NAME}..."
+              sudo docker compose -f docker-compose.prod.yml run --rm certbot certonly \
+                --webroot \
+                --webroot-path=/var/www/certbot \
+                --email "${CERTBOT_EMAIL}" \
+                --agree-tos \
+                --no-eff-email \
+                -d "${DOMAIN_NAME}"
+
+              # Step 3: Restore full SSL nginx config and restart everything
+              echo "==> SSL certificate obtained! Switching to HTTPS config..."
+              cp nginx/nginx.ssl.conf nginx/nginx.conf
+              rm -f nginx/nginx.ssl.conf
+              sudo docker compose -f docker-compose.prod.yml down
+              sudo DOCKER_IMAGE="$DOCKER_IMAGE" docker compose -f docker-compose.prod.yml up -d
+            fi
+
+            # Cleanup old images
+            sudo docker image prune -f
+
+            echo "==> Deployment complete! Site live at https://${DOMAIN_NAME}"
+            
