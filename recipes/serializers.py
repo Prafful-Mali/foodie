@@ -293,19 +293,22 @@ class RecipeSerializer(serializers.ModelSerializer):
         tenant = request.tenant
 
         if cuisine_id:
-            validated_data["cuisine"] = Cuisine.objects.get(
-                id=cuisine_id, tenant=tenant
-            )
+            validated_data["cuisine_id"] = cuisine_id
 
         validated_data["tenant"] = tenant
         recipe = Recipe.objects.create(**validated_data)
 
-        for ingredient_data in recipe_ingredients_data:
-            ingredient_id = ingredient_data.pop("ingredient_id")
-            ingredient = Ingredient.objects.get(id=ingredient_id, tenant=tenant)
-            RecipeIngredient.objects.create(
-                recipe=recipe, ingredient=ingredient, tenant=tenant, **ingredient_data
-            )
+        if recipe_ingredients_data:
+            recipe_ingredients = [
+                RecipeIngredient(
+                    recipe=recipe,
+                    ingredient_id=ingredient_data.pop("ingredient_id"),
+                    tenant=tenant,
+                    **ingredient_data,
+                )
+                for ingredient_data in recipe_ingredients_data
+            ]
+            RecipeIngredient.objects.bulk_create(recipe_ingredients)
 
         files = request.FILES.getlist("recipe_pictures")
         for idx, file in enumerate(files):
@@ -325,10 +328,7 @@ class RecipeSerializer(serializers.ModelSerializer):
         tenant = request.tenant
 
         if "cuisine_id" in self.initial_data:
-            if cuisine_id:
-                instance.cuisine = Cuisine.objects.get(id=cuisine_id, tenant=tenant)
-            else:
-                instance.cuisine = None
+            instance.cuisine_id = cuisine_id
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -338,15 +338,16 @@ class RecipeSerializer(serializers.ModelSerializer):
         if recipe_ingredients_data is not None:
             instance.recipe_ingredients.all().delete()
 
-            for ingredient_data in recipe_ingredients_data:
-                ingredient_id = ingredient_data.pop("ingredient_id")
-                ingredient = Ingredient.objects.get(id=ingredient_id, tenant=tenant)
-                RecipeIngredient.objects.create(
+            recipe_ingredients = [
+                RecipeIngredient(
                     recipe=instance,
-                    ingredient=ingredient,
+                    ingredient_id=ingredient_data.pop("ingredient_id"),
                     tenant=tenant,
                     **ingredient_data,
                 )
+                for ingredient_data in recipe_ingredients_data
+            ]
+            RecipeIngredient.objects.bulk_create(recipe_ingredients)
 
         indices = set()
         for key in request.data:

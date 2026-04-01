@@ -27,6 +27,7 @@ urlpatterns = [
     path("api/v1/", include("recipes.urls")),
     path("api/v1/", include("tenants.urls")),
     path("", include("payments.urls")),
+    # path("silk/", include("silk.urls", namespace="silk")),
     path("", RedirectView.as_view(url="/api/v1/", permanent=False)),
 ]
 

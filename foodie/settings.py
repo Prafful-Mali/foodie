@@ -69,9 +69,12 @@ INSTALLED_APPS = [
     "common",
     "tenants",
     "payments",
+    # "silk",
 ]
 
 MIDDLEWARE = [
+    # "silk.middleware.SilkyMiddleware",
+    # "pyinstrument.middleware.ProfilerMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -214,6 +217,10 @@ RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
 RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET")
 
 
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.Argon2PasswordHasher",
+]
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -260,6 +267,15 @@ LOGGING = {
 }
 
 
-PASSWORD_HASHERS = [
-    "django.contrib.auth.hashers.Argon2PasswordHasher",
-]
+# Pyinstrument settings
+# To profile a request, add '?profile' to the end of the URL
+# PYINSTRUMENT_URL_ARGUMENT = "profile"
+# PYINSTRUMENT_PROFILE_DIR = "profiles"
+# PYINSTRUMENT_FILENAME = "{timestamp:.0f}_{path}_{total_time:.3f}s.{ext}"
+
+# Silk settings
+# SILKY_INTERCEPT_PERCENT = 0
+# SILKY_PYTHON_PROFILER = False
+# SILKY_INTERCEPT_PERCENT = 100
+# SILKY_MAX_REQUEST_BODY_SIZE = 1024
+# SILKY_MAX_RESPONSE_BODY_SIZE = 1024

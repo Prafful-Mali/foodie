@@ -11,7 +11,7 @@ fake = Faker()
 
 @pytest.mark.django_db
 class TestUserCRUDIntegration:
-    # --- CREATE (by admin) ---
+    # --- CREATE ---
     @patch("users.views.user.send_setup_password_email")
     def test_create_user_as_admin(self, mock_task, admin_client, tenant):
         payload = {
