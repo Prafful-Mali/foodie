@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Subscribe</title>
+</head>
+
+<body>
+    <h1>Upgrade to Premium</h1>
+    <p>Price: ₹499 (Lifetime)</p>
+
+    <div>
+        <label>Enter Bearer Token:</label><br>
+        <input type="text" id="token" style="width: 300px;"><br><br>
+        <button id="pay-btn" onclick="startPayment()">Pay Now</button>
+    </div>
+
+    <div id="status" style="margin-top: 20px;"></div>
+
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script>
+        window.onload = function () {
+            const params = new URLSearchParams(window.location.search);
+            const statusBox = document.getElementById('status');
+            const payBtn = document.getElementById('pay-btn');
+            if (params.get('status') === 'success') {
+                statusBox.innerHTML = "<b style='color:green'>Success! Your account is upgraded.</b>";
+                if (payBtn) payBtn.style.display = 'none'; 
+            } else if (params.get('status') === 'failed') {
+                statusBox.innerHTML = "<b style='color:red'>Payment Failed. Please try again.</b>";
+            }
+            document.getElementById('token').value = sessionStorage.getItem('access_token') || '';
+        };
+
+        async function startPayment() {
+            const token = document.getElementById('token').value;
+            if (!token) { alert("Please enter token"); return; }
+
+            sessionStorage.setItem('access_token', token);
+            document.getElementById('pay-btn').disabled = true;
+            document.getElementById('status').innerText = "Processing...";
+
+            try {
+                const resp = await fetch('/api/v1/orders/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    }
+                });
+                const order = await resp.json();
+
+                const options = {
+                    "key": "{{ razorpay_key_id }}",
+                    "amount": order.amount,
+                    "currency": order.currency,
+                    "name": "Foodie",
+                    "order_id": order.order_id,
+                    "callback_url": window.location.origin + "/payment/callback/",
+                    "redirect": true,
+                    "theme": { "color": "#000000" },
+                    "retry": {
+                        "enabled": false
+                    }
+                };
+                new Razorpay(options).open();
+            } catch (e) {
+                document.getElementById('status').innerText = "Error: " + e.message;
+                document.getElementById('pay-btn').disabled = false;
+            }
+        }
+    </script>
+</body>
+
+</html>

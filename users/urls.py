@@ -1,25 +1,27 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    RegisterAPIView,
+    # RegisterAPIView,
     LoginAPIView,
     LogoutAPIView,
     TokenRefreshAPIView,
     ChangePasswordView,
     UserViewSet,
-    VerifyOTPAPIView,
-    ResendOTPAPIView,
+    # VerifyOTPAPIView,
+    # ResendOTPAPIView,
     ForgotPasswordAPIView,
     ResetPasswordPage,
     LoginVerifyOTPAPIView,
     LoginResendOTPAPIView,
+    SetupPasswordPage,
+    InviteUserAPIView,
+    AcceptInvitePage,
 )
 
 router = DefaultRouter()
 router.register("users", UserViewSet, basename="user")
 
 urlpatterns = [
-    path("auth/register/", RegisterAPIView.as_view(), name="register"),
     path("auth/login/", LoginAPIView.as_view(), name="login"),
     path(
         "auth/login/verify-otp/",
@@ -36,13 +38,22 @@ urlpatterns = [
     path(
         "users/change-password/", ChangePasswordView.as_view(), name="password_change"
     ),
-    path("auth/verify-otp/", VerifyOTPAPIView.as_view(), name="verify_otp"),
-    path("auth/resend-otp/", ResendOTPAPIView.as_view(), name="resend_otp"),
     path("forgot-password/", ForgotPasswordAPIView.as_view(), name="forgot_password"),
     path(
         "reset-password/<str:token>/",
         ResetPasswordPage.as_view(),
         name="reset_password",
+    ),
+    path(
+        "setup-password/<str:token>/",
+        SetupPasswordPage.as_view(),
+        name="setup_password",
+    ),
+    path("invite/user/", InviteUserAPIView.as_view(), name="invite_user"),
+    path(
+        "invite/accept/<str:token>/",
+        AcceptInvitePage.as_view(),
+        name="accept_invite",
     ),
     path("", include(router.urls)),
 ]

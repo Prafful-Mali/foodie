@@ -13,8 +13,14 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+from datetime import timedelta
 from celery.schedules import crontab
-from common.constants import ACCESS_TOKEN_LIFETIME, REFRESH_TOKEN_LIFETIME
+from common.constants import (
+    ACCESS_TOKEN_LIFETIME,
+    REFRESH_TOKEN_LIFETIME,
+    USER_CLEANUP_TASK_INTERVAL_DAYS,
+    FLUSH_TOKENS_TASK_INTERVAL_DAYS,
+)
 
 
 load_dotenv()
@@ -52,6 +58,7 @@ INSTALLED_APPS = [
     "recipes",
     "common",
     "tenants",
+    "payments",
 ]
 
 MIDDLEWARE = [
@@ -60,6 +67,8 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "common.middleware.TenantMiddleware",
+    "common.middleware.RequestLoggingMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -133,6 +142,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 AUTH_USER_MODEL = "users.User"
 
@@ -161,7 +172,11 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_BEAT_SCHEDULE = {
     "cleanup-soft-deleted-users": {
         "task": "users.tasks.cleanup_soft_deleted_users",
-        "schedule": crontab(hour=3, minute=0),
+        "schedule": timedelta(days=USER_CLEANUP_TASK_INTERVAL_DAYS),
+    },
+    "flush-expired-tokens": {
+        "task": "users.tasks.flush_expired_tokens",
+        "schedule": timedelta(days=FLUSH_TOKENS_TASK_INTERVAL_DAYS),
     },
 }
 
@@ -171,8 +186,7 @@ EMAIL_PORT = int(os.getenv("EMAIL_PORT"))
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS") == "True"
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
-DEFAULT_FROM_EMAIL = os.getenv("EMAIL_HOST_USER")
-# EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL")
 
 CACHES = {
     "default": {
@@ -182,4 +196,41 @@ CACHES = {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         },
     }
+}
+
+
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
+RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET")
+
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "json": {
+            "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
+            "format": "%(asctime)s %(levelname)s %(message)s",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "json",
+        },
+        "request_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": BASE_DIR / "logs/requests.log",
+            "maxBytes": 10 * 1024 * 1024,
+            "backupCount": 5,
+            "formatter": "json",
+        },
+    },
+    "loggers": {
+        "django.request": {
+            "handlers": ["console", "request_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
 }

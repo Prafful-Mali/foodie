@@ -17,12 +17,18 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/v1/", include("users.urls")),
     path("api/v1/", include("recipes.urls")),
     path("api/v1/", include("tenants.urls")),
+    path("", include("payments.urls")),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 handler404 = "common.exceptions.custom_404_handler"

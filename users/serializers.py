@@ -1,150 +1,15 @@
+import re
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
-from django.core.cache import cache
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User
-from .enums import UserRole
-
-
-class RegisterSerializer(serializers.Serializer):
-    id = serializers.UUIDField(read_only=True)
-    username = serializers.CharField(min_length=3, max_length=150)
-    first_name = serializers.CharField(min_length=3, max_length=150)
-    last_name = serializers.CharField(min_length=3, max_length=150)
-    email = serializers.EmailField()
-    password = serializers.CharField(write_only=True, min_length=8)
-    confirm_password = serializers.CharField(write_only=True, min_length=8)
-    created_at = serializers.DateTimeField(read_only=True)
-
-    def validate_username(self, attr):
-        user = User.objects.filter(username=attr).first()
-
-        if not user:
-            return attr
-
-        if not user.is_active and user.deleted_by_id == user.id:
-            return attr
-
-        raise serializers.ValidationError("Username already exists.")
-
-    def validate_first_name(self, attr):
-        if not attr.isalpha():
-            raise serializers.ValidationError("First name must contain only letters.")
-        return attr
-
-    def validate_last_name(self, attr):
-        if not attr.isalpha():
-            raise serializers.ValidationError("Last name must contain only letters.")
-        return attr
-
-    def validate_email(self, value):
-        value = value.lower()
-        user = User.objects.filter(email=value).first()
-
-        if not user:
-            return value
-
-        if user.is_active:
-            raise serializers.ValidationError("Email already exists.")
-
-        if user.deleted_by and user.deleted_by_id != user.id:
-            raise serializers.ValidationError(
-                "This account was deactivated by an administrator."
-            )
-
-        if user.deleted_by_id == user.id:
-            return value
-
-        raise serializers.ValidationError("Email already exists.")
-
-    def validate_password(self, attr):
-        validate_password(attr)
-        return attr
-
-    def validate(self, data):
-        password = data.get("password")
-        confirm_password = data.get("confirm_password")
-
-        if password != confirm_password:
-            raise serializers.ValidationError(
-                {"confirm_password": "Passwords do not match."}
-            )
-
-        return data
-
-    def create(self, validated_data):
-        validated_data.pop("confirm_password")
-        password = validated_data.pop("password")
-        email = validated_data.get("email").lower()
-
-        user = User.objects.filter(email=email).first()
-
-        if user and not user.is_active and user.deleted_by_id == user.id:
-            user.username = validated_data["username"]
-            user.first_name = validated_data["first_name"]
-            user.last_name = validated_data["last_name"]
-            user.set_password(password)
-
-            user.is_active = True
-            user.deleted_at = None
-            user.deleted_by = None
-
-            user.save(
-                update_fields=[
-                    "username",
-                    "first_name",
-                    "last_name",
-                    "password",
-                    "is_active",
-                    "deleted_at",
-                    "deleted_by",
-                ]
-            )
-            return user
-
-        user = User(**validated_data)
-        user.set_password(password)
-        user.save()
-        return user
-
-
-class VerifyOTPSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    otp = serializers.CharField()
-
-    def validate_email(self, attr):
-        attr = attr.lower()
-        try:
-            user = User.objects.get(email=attr)
-        except User.DoesNotExist:
-            raise serializers.ValidationError({"detail": "Invalid credentials"})
-
-        if not user.is_active:
-            raise serializers.ValidationError({"detail": "Account does not exist"})
-
-        if user.is_email_verified:
-            raise serializers.ValidationError({"detail": "Email already verified"})
-
-        return attr
-
-
-class ResendOTPSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-
-    def validate_email(self, attr):
-        attr.lower()
-        try:
-            user = User.objects.get(email=attr)
-        except User.DoesNotExist:
-            raise serializers.ValidationError({"detail": "Invalid credentials"})
-
-        if not user.is_active:
-            raise serializers.ValidationError({"detail": "Account does not exist"})
-
-        if user.is_email_verified:
-            raise serializers.ValidationError({"detail": "Email already verified"})
-
-        return attr
+from common.enums import UserRole
+from tenants.models import Tenant
+from .utils import (
+    hash_otp,
+    delete_reset_token,
+    get_user_otp,
+)
 
 
 class LoginSerializer(serializers.Serializer):
@@ -198,15 +63,14 @@ class LoginVerifyOTPSerializer(serializers.Serializer):
                 {"detail": "Please verify your account before login"}
             )
 
-        cache_key = f"login_otp:{email}"
-        cached_otp = cache.get(cache_key)
+        cached_otp = get_user_otp(email, prefix="login_otp")
 
         if not cached_otp:
             raise serializers.ValidationError(
                 {"detail": "OTP expired. Please request a new one."}
             )
 
-        if cached_otp != otp:
+        if cached_otp != hash_otp(otp):
             raise serializers.ValidationError({"detail": "Invalid OTP"})
 
         attrs["email"] = email
@@ -233,8 +97,7 @@ class LoginResendOTPSerializer(serializers.Serializer):
                 {"detail": "Please verify your account first"}
             )
 
-        cache_key = f"login_otp:{email}"
-        if cache.get(cache_key):
+        if get_user_otp(email, prefix="login_otp"):
             raise serializers.ValidationError(
                 {
                     "detail": "An OTP was already sent. Please check your email before requesting again."
@@ -272,15 +135,25 @@ class TokenRefreshSerializer(serializers.Serializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    tenant_id = serializers.UUIDField(
+        source="tenant.id", read_only=True, allow_null=True
+    )
+    tenant_name = serializers.CharField(
+        source="tenant.name", read_only=True, allow_null=True
+    )
+
     class Meta:
         model = User
         fields = [
             "id",
             "username",
             "email",
+            "is_email_verified",
             "first_name",
             "last_name",
             "role",
+            "tenant_id",
+            "tenant_name",
             "created_at",
             "updated_at",
         ]
@@ -288,17 +161,29 @@ class UserSerializer(serializers.ModelSerializer):
             "id",
             "username",
             "email",
-            "first_name",
-            "last_name",
             "role",
+            "tenant_id",
+            "tenant_name",
             "created_at",
             "updated_at",
         ]
 
+    def validate_first_name(self, value):
+        if value and not value.isalpha():
+            raise serializers.ValidationError("First name must contain only letters.")
+        return value
+
+    def validate_last_name(self, value):
+        if value and not value.isalpha():
+            raise serializers.ValidationError("Last name must contain only letters.")
+        return value
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get("request")
-        if request and request.user.role == UserRole.ADMIN:
+        if request and (
+            request.user.role == UserRole.ADMIN or request.user.is_superadmin
+        ):
             self.fields["is_active"] = serializers.BooleanField()
             self.fields["deleted_at"] = serializers.DateTimeField(read_only=True)
 
@@ -354,3 +239,232 @@ class ResetPasswordSerializer(serializers.Serializer):
         if attrs["new_password"] != attrs["confirm_new_password"]:
             raise serializers.ValidationError("Passwords do not match")
         return attrs
+
+
+class CreateUserSerializer(serializers.Serializer):
+    username = serializers.CharField(min_length=3, max_length=150)
+    first_name = serializers.CharField(min_length=3, max_length=150)
+    last_name = serializers.CharField(min_length=3, max_length=150)
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True, min_length=8, required=False)
+    confirm_password = serializers.CharField(
+        write_only=True, min_length=8, required=False
+    )
+    tenant_id = serializers.UUIDField(required=False, allow_null=True)
+    is_email_verified = serializers.BooleanField(read_only=True)
+
+    def validate_username(self, value):
+        if User.objects.filter(username=value, is_active=True).exists():
+            raise serializers.ValidationError("Username already exists.")
+        return value
+
+    def validate_first_name(self, value):
+        if not value.isalpha():
+            raise serializers.ValidationError("First name must contain only letters.")
+        return value
+
+    def validate_last_name(self, value):
+        if not value.isalpha():
+            raise serializers.ValidationError("Last name must contain only letters.")
+        return value
+
+    def validate_email(self, value):
+        value = value.lower()
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("Email already exists.")
+        return value
+
+    def validate_password(self, value):
+        validate_password(value)
+        return value
+
+    def validate(self, attrs):
+        password = attrs.get("password")
+        confirm_password = attrs.get("confirm_password")
+
+        request = self.context.get("request")
+
+        if password and confirm_password and password != confirm_password:
+            raise serializers.ValidationError(
+                {"confirm_password": "Passwords do not match."}
+            )
+
+        tenant_id = attrs.get("tenant_id")
+
+        if request.user.is_superadmin:
+            if not tenant_id:
+                raise serializers.ValidationError(
+                    {
+                        "tenant_id": "Tenant ID is required for super admin to create users."
+                    }
+                )
+
+            if not Tenant.objects.filter(id=tenant_id, is_active=True).exists():
+                raise serializers.ValidationError(
+                    {"tenant_id": "Invalid or inactive tenant."}
+                )
+
+        elif request.user.role == UserRole.ADMIN:
+            if tenant_id:
+                raise serializers.ValidationError(
+                    {"tenant_id": "Normal admins cannot specify tenant_id."}
+                )
+
+            if not request.user.tenant:
+                raise serializers.ValidationError(
+                    {"detail": "Admin must belong to a tenant to create users."}
+                )
+
+        else:
+            raise serializers.ValidationError(
+                {"detail": "Only admins can create users."}
+            )
+
+        return attrs
+
+    def create(self, validated_data):
+        validated_data.pop("confirm_password", None)
+        password = validated_data.pop("password", None)
+        request = self.context.get("request")
+
+        if request.user.is_superadmin:
+            tenant_id = validated_data.pop("tenant_id")
+            tenant = Tenant.objects.get(id=tenant_id)
+            user = User(
+                **validated_data,
+                role=UserRole.ADMIN,
+                tenant=tenant,
+                is_email_verified=False,
+            )
+        else:
+            validated_data.pop("tenant_id", None)
+            user = User(
+                **validated_data,
+                role=UserRole.USER,
+                tenant=request.user.tenant,
+                is_email_verified=False,
+            )
+
+        if password:
+            user.set_password(password)
+        else:
+            user.set_unusable_password()
+
+        user.save()
+        return user
+
+
+class InviteUserSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        value = value.lower()
+        user = User.objects.filter(email=value).first()
+
+        if user and user.is_active:
+            raise serializers.ValidationError("Email already exists.")
+
+        if user and user.deleted_by and user.deleted_by_id != user.id:
+            raise serializers.ValidationError(
+                "This account was deactivated by an administrator."
+            )
+
+        return value
+
+    def create(self, validated_data):
+        request = self.context["request"]
+
+        if not request.user.tenant:
+            raise serializers.ValidationError(
+                {"detail": "Admin must belong to a tenant to invite users."}
+            )
+
+        email = validated_data["email"]
+
+        user = User.objects.create(
+            email=email,
+            tenant=request.user.tenant,
+            role=UserRole.USER,
+            is_active=False,
+            is_email_verified=False,
+        )
+        user.set_unusable_password()
+        user.save()
+
+        return user
+
+
+class AcceptInviteSerializer(serializers.Serializer):
+    username = serializers.CharField(min_length=3, max_length=150)
+    first_name = serializers.CharField(min_length=3, max_length=150)
+    last_name = serializers.CharField(min_length=3, max_length=150)
+    password = serializers.CharField(write_only=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True, min_length=8)
+
+    def validate_username(self, value):
+        user = User.objects.filter(username=value).first()
+
+        if not user:
+            return value
+
+        if not user.is_active and user.deleted_by_id == user.id:
+            return value
+
+        raise serializers.ValidationError("Username already exists.")
+
+    def validate_first_name(self, value):
+        if not value.isalpha():
+            raise serializers.ValidationError("First name must contain only letters.")
+        return value
+
+    def validate_last_name(self, value):
+        if not value.isalpha():
+            raise serializers.ValidationError("Last name must contain only letters.")
+        return value
+
+    def validate_password(self, value):
+        validate_password(value)
+        return value
+
+    def validate(self, data):
+        password = data.get("password")
+        confirm_password = data.get("confirm_password")
+
+        if password != confirm_password:
+            raise serializers.ValidationError(
+                {"confirm_password": "Passwords do not match."}
+            )
+
+        return data
+
+    def create(self, validated_data):
+        user_id = self.context["user_id"]
+        token = self.context["token"]
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            raise serializers.ValidationError({"detail": "User not found"})
+
+        user.username = validated_data["username"]
+        user.first_name = validated_data["first_name"]
+        user.last_name = validated_data["last_name"]
+        user.set_password(validated_data["password"])
+        user.is_active = True
+        user.is_email_verified = True
+        user.deleted_at = None
+        user.deleted_by = None
+
+        user.save(
+            update_fields=[
+                "username",
+                "first_name",
+                "last_name",
+                "password",
+                "is_active",
+                "is_email_verified",
+                "deleted_at",
+                "deleted_by",
+            ]
+        )
+        delete_reset_token(token)
+        return user

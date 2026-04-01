@@ -1,0 +1,308 @@
+import logging
+from django.shortcuts import get_object_or_404, render
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.tokens import RefreshToken
+
+from ..serializers import (
+    LoginSerializer,
+    TokenRefreshSerializer,
+    ChangePasswordSerializer,
+    ForgotPasswordSerializer,
+    ResetPasswordSerializer,
+    LoginVerifyOTPSerializer,
+    LoginResendOTPSerializer,
+    InviteUserSerializer,
+    AcceptInviteSerializer,
+)
+from ..models import User
+from ..tasks import (
+    send_reset_password_email,
+    send_login_otp_email,
+    send_invite_email,
+)
+from ..utils import (
+    get_user_id_from_token,
+    delete_reset_token,
+    is_otp_rate_limited,
+    delete_user_otp,
+)
+from ..permissions import IsAdmin
+
+logger = logging.getLogger(__name__)
+
+
+class LoginAPIView(APIView):
+
+    def post(self, request):
+        serializer = LoginSerializer(data=request.data)
+
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+
+        if is_otp_rate_limited(email, prefix="login_otp"):
+            return Response(
+                {"errors": {"detail": "Please wait before requesting OTP again"}},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        send_login_otp_email.delay(email)
+
+        return Response(
+            {
+                "message": "OTP sent to your email. Please verify to complete login.",
+                "email": email,
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+
+class LoginVerifyOTPAPIView(APIView):
+    def post(self, request):
+        serializer = LoginVerifyOTPSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+        user = serializer.validated_data["user"]
+
+        delete_user_otp(email, prefix="login_otp")
+
+        refresh = RefreshToken.for_user(user)
+
+        return Response(
+            {
+                "refresh": str(refresh),
+                "access": str(refresh.access_token),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class LoginResendOTPAPIView(APIView):
+    def post(self, request):
+        serializer = LoginResendOTPSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+
+        if is_otp_rate_limited(email, prefix="login_otp"):
+            return Response(
+                {"errors": {"detail": "Please wait before requesting OTP again"}},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        send_login_otp_email.delay(email)
+
+        return Response(
+            {"message": "OTP resent successfully"},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+
+class LogoutAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            refresh_token = request.data.get("refresh")
+
+            if not refresh_token:
+                return Response(
+                    {"errors": {"detail": "Refresh token is required"}},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+
+            return Response(
+                {"message": "Logout successful"},
+                status=status.HTTP_200_OK,
+            )
+        except Exception:
+            return Response(
+                {"errors": {"detail": "Invalid or expired token"}},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+
+class TokenRefreshAPIView(APIView):
+
+    def post(self, request):
+        serializer = TokenRefreshSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.validated_data, status=status.HTTP_200_OK)
+
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(instance=request.user, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(
+            {"message": "Password updated successfully."}, status=status.HTTP_200_OK
+        )
+
+
+class ForgotPasswordAPIView(APIView):
+    def post(self, request):
+        serializer = ForgotPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+        base_url = request.build_absolute_uri("/")[:-1]
+
+        send_reset_password_email.delay(email, base_url)
+
+        logger.info(f"Password reset email requested for: {email}")
+
+        return Response(
+            {"message": "If the email exists, a reset link was sent."},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+
+class ResetPasswordPage(APIView):
+
+    def get(self, request, token):
+        user_id = get_user_id_from_token(token)
+        if not user_id:
+            return Response(
+                {"errors": {"detail": "Invalid or expired token"}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return render(request, "reset_password.html", {"token": token})
+
+    def post(self, request, token):
+        user_id = get_user_id_from_token(token)
+        if not user_id:
+            return Response(
+                {"errors": {"detail": "Invalid or expired token"}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = ResetPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = User.objects.get(id=user_id)
+        user.set_password(serializer.validated_data["new_password"])
+        user.save(update_fields=["password"])
+
+        delete_reset_token(token)
+
+        return Response(
+            {"success": True},
+            status=status.HTTP_200_OK,
+        )
+
+
+class SetupPasswordPage(APIView):
+
+    def get(self, request, token):
+        user_id = get_user_id_from_token(token)
+        if not user_id:
+            return Response(
+                {"errors": {"detail": "Invalid or expired token"}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return render(request, "setup_password.html", {"token": token})
+
+    def post(self, request, token):
+        user_id = get_user_id_from_token(token)
+        if not user_id:
+            return Response(
+                {"errors": {"detail": "Invalid or expired token"}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = ResetPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = User.objects.get(id=user_id)
+        user.set_password(serializer.validated_data["new_password"])
+        user.is_email_verified = True
+        user.save(update_fields=["password", "is_email_verified"])
+
+        delete_reset_token(token)
+
+        return Response(
+            {"success": True},
+            status=status.HTTP_200_OK,
+        )
+
+
+class InviteUserAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def post(self, request):
+        serializer = InviteUserSerializer(
+            data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+
+        user = serializer.save()
+
+        base_url = request.build_absolute_uri("/")[:-1]
+
+        send_invite_email.delay(user.email, base_url, request.user.tenant.name)
+
+        return Response(
+            {"message": "Invitation sent successfully."},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+
+class AcceptInvitePage(APIView):
+
+    def get(self, request, token):
+        user_id = get_user_id_from_token(token)
+        if not user_id:
+            return Response(
+                {"errors": {"detail": "Invalid or expired invitation token"}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            user = User.objects.get(id=user_id)
+            return Response(
+                {
+                    "message": "Valid invitation token",
+                    "email": user.email,
+                    "first_name": user.first_name or "",
+                    "last_name": user.last_name or "",
+                    "tenant_name": user.tenant.name if user.tenant else "",
+                },
+                status=status.HTTP_200_OK,
+            )
+        except User.DoesNotExist:
+            return Response(
+                {"errors": {"detail": "User not found"}},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+    def post(self, request, token):
+        user_id = get_user_id_from_token(token)
+        if not user_id:
+            return Response(
+                {"errors": {"detail": "Invalid or expired invitation token"}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = AcceptInviteSerializer(
+            data=request.data, context={"user_id": user_id, "token": token}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(
+            {
+                "message": "Invitation accepted successfully. You can now login.",
+            },
+            status=status.HTTP_200_OK,
+        )

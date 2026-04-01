@@ -2,7 +2,7 @@ import uuid
 from django.db import models
 from django.conf import settings
 from common.models import BaseModel
-from .enums import SharingStatus
+from common.enums import SharingStatus
 
 
 class Cuisine(BaseModel):
@@ -73,7 +73,7 @@ class Recipe(BaseModel):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     preparation_steps = models.TextField()
-    cooking_time = models.PositiveIntegerField()
+    cooking_time = models.PositiveIntegerField(help_text="Time in minutes")
     sharing_status = models.CharField(
         max_length=20,
         choices=SharingStatus.choices,
@@ -91,6 +91,11 @@ class Recipe(BaseModel):
                 fields=["tenant", "name"],
                 name="unique_recipe_name_per_tenant",
             )
+        ]
+        indexes = [
+            models.Index(fields=["name"], name="recipe_name_idx"),
+            models.Index(fields=["sharing_status"], name="recipe_sharing_status_idx"),
+            models.Index(fields=["description"], name="recipe_description_idx"),
         ]
 
     def __str__(self):
@@ -128,3 +133,26 @@ class RecipeIngredient(BaseModel):
 
     def __str__(self):
         return f"{self.recipe.name} - {self.ingredient.name}"
+
+
+class RecipePicture(BaseModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        "tenants.Tenant",
+        on_delete=models.CASCADE,
+        related_name="recipe_pictures",
+    )
+    recipe = models.ForeignKey(
+        Recipe,
+        on_delete=models.CASCADE,
+        related_name="recipe_pictures",
+    )
+    picture = models.ImageField(upload_to="recipes/pictures/")
+    order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True, db_default=True)
+
+    class Meta:
+        ordering = ["order", "-created_at"]
+
+    def __str__(self):
+        return f"{self.recipe.name} - Picture {self.order}"
