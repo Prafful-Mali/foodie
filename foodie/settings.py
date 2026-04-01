@@ -69,7 +69,7 @@ INSTALLED_APPS = [
     "common",
     "tenants",
     "payments",
-    "silk",
+    # "silk",
 ]
 
 MIDDLEWARE = [
@@ -270,8 +270,8 @@ LOGGING = {
 # Pyinstrument settings
 # To profile a request, add '?profile' to the end of the URL
 # PYINSTRUMENT_URL_ARGUMENT = "profile"
-PYINSTRUMENT_PROFILE_DIR = "profiles"
-PYINSTRUMENT_FILENAME = "{timestamp:.0f}_{path}_{total_time:.3f}s.{ext}"
+# PYINSTRUMENT_PROFILE_DIR = "profiles"
+# PYINSTRUMENT_FILENAME = "{timestamp:.0f}_{path}_{total_time:.3f}s.{ext}"
 
 # Silk settings
 # SILKY_INTERCEPT_PERCENT = 0
